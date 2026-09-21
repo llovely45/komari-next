@@ -1,14 +1,21 @@
-name: Publish Docker Image on Build
+name: Publish Versioned Docker Image
 
 on:
   push:
     branches:
       - build
   workflow_dispatch:
+    inputs:
+      version:
+        description: Docker image and embedded application version, for example 1.0.0.
+        required: false
+        default: "1.0.0"
+        type: string
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  IMAGE_VERSION: ${{ inputs.version || '1.0.0' }}
 
 jobs:
   build-frontend:
@@ -34,6 +41,15 @@ jobs:
       - name: Restore frontend artifact
         uses: ./.github/actions/restore-frontend
 
+      - name: Validate version
+        shell: bash
+        run: |
+          if [[ ! "$IMAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $IMAGE_VERSION"
+            echo "Use a semantic version such as 1.0.0 or 1.0.0-rc.1."
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -48,7 +64,7 @@ jobs:
           CGO_ENABLED: 1
           GIN_MODE: release
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="$IMAGE_VERSION"
           VERSION_HASH="${{ github.sha }}"
           LDFLAGS="-s -w -X github.com/komari-monitor/komari/utils.CurrentVersion=${VERSION} -X github.com/komari-monitor/komari/utils.VersionHash=${VERSION_HASH}"
 
@@ -100,7 +116,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ github.ref_name }}
+            type=raw,value=${{ env.IMAGE_VERSION }}
             type=sha,format=short
 
       - name: Build and push Docker image
