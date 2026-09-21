@@ -1,9 +1,9 @@
-name: Publish Docker Image on Main
+name: Publish Docker Image on Build
 
 on:
-  #push:
-  #  branches:
-  #    - main
+  push:
+    branches:
+      - build
   workflow_dispatch:
 
 env:
