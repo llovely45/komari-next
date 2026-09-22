@@ -6,9 +6,9 @@ import (
 	"github.com/komari-monitor/komari/internal/metricstore"
 )
 
-func TestMetricKeysTouched(t *testing.T) {
-	if !metricKeysTouched(map[string]interface{}{metricstore.MetricDBDSNKey: "metrics.db"}) {
-		t.Fatal("metric database DSN must trigger metric store validation")
+func TestMetricKeysTouchedOnlySharedMetricSettings(t *testing.T) {
+	if metricKeysTouched(map[string]interface{}{"metric_db_dsn": "metrics.db"}) {
+		t.Fatal("retired metric database DSN must not trigger metric store validation")
 	}
 	for _, key := range []string{
 		metricstore.MetricRollupMinuteRetentionMinutesKey,

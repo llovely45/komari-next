@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/komari-monitor/komari/cmd/flags"
 	"github.com/komari-monitor/komari/internal/cache"
 )
 
@@ -83,46 +82,59 @@ func TestShutdownReturnsCleanupError(t *testing.T) {
 	}
 }
 
-func TestInitCacheUsesNoopWhenRedisIsNotConfigured(t *testing.T) {
-	previous := flags.RedisURL
-	t.Cleanup(func() { flags.RedisURL = previous })
-	flags.RedisURL = ""
+func TestInitCacheUsesBuiltinRedisWithoutExternalConfiguration(t *testing.T) {
+	fake := &fakeBuiltinRedis{}
+	previous := newBuiltinRedis
+	newBuiltinRedis = func() (builtinRedis, error) { return fake, nil }
+	t.Cleanup(func() { newBuiltinRedis = previous })
 
 	app := New(Options{})
 	if err := app.InitCache(); err != nil {
 		t.Fatalf("InitCache: %v", err)
 	}
-	if _, ok := app.Cache().(cache.Noop); !ok {
-		t.Fatalf("cache type = %T, want cache.Noop", app.Cache())
+	if app.Cache() != fake {
+		t.Fatalf("cache = %T, want the built-in Redis instance", app.Cache())
+	}
+	if fake.pinged == 0 {
+		t.Fatal("InitCache did not ping built-in Redis")
+	}
+	if err := app.Shutdown(); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+	if !fake.closed {
+		t.Fatal("shutdown did not close built-in Redis")
 	}
 }
 
-func TestInitCacheFallsBackToNoopForInvalidRedisURL(t *testing.T) {
-	previous := flags.RedisURL
-	t.Cleanup(func() { flags.RedisURL = previous })
-	flags.RedisURL = "not-a-redis-url"
+func TestInitCacheFailsWhenBuiltinRedisIsUnavailable(t *testing.T) {
+	previous := newBuiltinRedis
+	newBuiltinRedis = func() (builtinRedis, error) {
+		return &fakeBuiltinRedis{pingErr: errors.New("redis unavailable")}, nil
+	}
+	t.Cleanup(func() { newBuiltinRedis = previous })
 
 	app := New(Options{})
-	if err := app.InitCache(); err != nil {
-		t.Fatalf("InitCache: %v", err)
+	if err := app.InitCache(); err == nil {
+		t.Fatal("InitCache succeeded without the built-in Redis service")
 	}
 	if _, ok := app.Cache().(cache.Noop); !ok {
-		t.Fatalf("cache type = %T, want cache.Noop", app.Cache())
+		t.Fatalf("cache after failed initialization = %T, want cache.Noop", app.Cache())
 	}
 }
 
-func TestInitCacheCreatesRedisForValidURL(t *testing.T) {
-	previous := flags.RedisURL
-	t.Cleanup(func() { flags.RedisURL = previous })
-	flags.RedisURL = "redis://127.0.0.1:1/0"
+type fakeBuiltinRedis struct {
+	cache.Noop
+	pingErr error
+	pinged  int
+	closed  bool
+}
 
-	app := New(Options{})
-	if err := app.InitCache(); err != nil {
-		t.Fatalf("InitCache: %v", err)
-	}
-	t.Cleanup(func() { _ = app.Shutdown() })
+func (f *fakeBuiltinRedis) Ping(context.Context) error {
+	f.pinged++
+	return f.pingErr
+}
 
-	if _, ok := app.Cache().(*cache.Redis); !ok {
-		t.Fatalf("cache type = %T, want *cache.Redis", app.Cache())
-	}
+func (f *fakeBuiltinRedis) Close() error {
+	f.closed = true
+	return nil
 }

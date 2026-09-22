@@ -1,5 +1,8 @@
 # Komari 优化方向
 
+> [!NOTE]
+> 本文是目标架构和后续路线，不替代[当前技术架构](./technical-overview.md)、[配置参考](./configuration.md)或 API 文档。当前运行时已经使用 PostgreSQL 主库、共享 PostgreSQL 指标表和容器内固定 Redis；本页保留未来模块化、隔离和可观测性工作的设计目标。
+
 ## 目标
 
 本分支以 Komari 1.4.3 为基线，目标不是把项目改写成另一种语言，而是把它演进成：
@@ -18,8 +21,8 @@
 - internal/server 负责直接组装数据库、指标库、通知、OAuth、路由和插件。
 - RPC 注册表、消息发送器和插件管理器带有进程级全局状态。
 - Web/RPC 层仍有多处直接调用 dbcore.GetDBInstance()，传输层、业务层和存储层没有完全分离。
-- 主数据库初始化目前只支持 SQLite；指标库已经支持 PostgreSQL，但这不等于整个系统已经支持 PostgreSQL。
-- 当前基线尚未包含 Redis 客户端或运行时依赖；Redis 目前还不是 Komari 的依赖，只是后续可选的加速层。
+- 正常启动入口已经固定使用 PostgreSQL，SQLite 只保留在兼容测试和历史迁移辅助路径；数据库连接边界仍需要继续从全局对象中解耦。
+- 当前运行时已经包含 Redis Cache Port，并由容器内固定的 127.0.0.1:6379 提供启动依赖；外置 Redis 配置和更细的失效策略仍属于后续设计。
 - 指标存储有多个并发保护层，优化必须以写入吞吐、查询延迟和锁等待的实测数据为依据。
 - 插件 HTTP Hook 和 HTML 注入可能对响应做大内存缓冲，不能让它们进入指标上报热路径。
 
@@ -87,7 +90,7 @@ Rust 只用于需要独立部署、独立升级或特殊性能特征的外部服
 ### PostgreSQL
 
 - 控制面数据：用户、节点、任务、通知、主题、插件配置和审计日志。
-- 指标数据：优先使用独立 PostgreSQL schema 或独立数据库，避免控制面事务和指标写入相互阻塞。
+- 指标数据：当前与控制面表共用 PostgreSQL 连接池并使用 metric_ 表前缀；只有 profiling 证明需要隔离时，才评估独立 schema、数据库或连接池。
 - 使用连接池、事务边界和显式迁移版本。
 - SQLite 保留为开发、单机兼容和迁移源，不能在升级时静默删除或覆盖。
 - DSN 必须脱敏后才能进入日志、错误响应和插件日志。
@@ -120,7 +123,7 @@ Redis 是加速层，不是数据源：
 
 - 模块注册和生命周期骨架。
 - 主数据库 PostgreSQL 连接适配。
-- Redis cache port、Redis 实现和可选的服务端生命周期接入。
+- Redis Cache Port、Redis 实现和当前服务端生命周期接入；外置 Redis 配置作为后续兼容性设计。
 - Go 外部插件的 `internal/pluginprocess` 稳定 wire data 和验证逻辑；Unix-socket framing、Protobuf 字段编号、service/method 和握手响应 envelope 留到后续 process-manager 阶段。
 - 文档、单元测试和兼容性说明。
 

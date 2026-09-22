@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/database/models"
 	appconfig "github.com/komari-monitor/komari/internal/config"
 	"gorm.io/driver/sqlite"
@@ -65,7 +64,7 @@ func TestInstallRejectsInvalidInputWithoutCreatingAccount(t *testing.T) {
 func TestInstallRejectsWeakPasswordWithoutCreatingAccount(t *testing.T) {
 	r, db, _ := setupInstallRouter(t)
 	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
-		Username: "admin", Password: "lowercaseonly1", Sitename: "Komari", MetricDSN: "./data/metrics.db",
+		Username: "admin", Password: "lowercaseonly1", Sitename: "Komari",
 	})
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("weak password status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
@@ -78,13 +77,11 @@ func TestInstallRejectsWeakPasswordWithoutCreatingAccount(t *testing.T) {
 
 func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 	r, db, _ := setupInstallRouter(t)
-	metricDSN := "file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "metrics.db")) + "?mode=rwc"
 	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
 		Username:    "owner",
 		Password:    "Correct-horse-battery-staple1",
 		Sitename:    "My Komari",
 		Description: "Private monitoring",
-		MetricDSN:   metricDSN,
 	})
 	if response.Code != http.StatusOK {
 		t.Fatalf("complete install status = %d: %s", response.Code, response.Body.String())
@@ -94,10 +91,8 @@ func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 		t.Fatalf("find installed admin: %v", err)
 	}
 	want := map[string]any{
-		appconfig.SitenameKey:         "My Komari",
-		appconfig.DescriptionKey:      "Private monitoring",
-		metricstore.MetricDBDriverKey: "sqlite",
-		metricstore.MetricDBDSNKey:    metricDSN,
+		appconfig.SitenameKey:    "My Komari",
+		appconfig.DescriptionKey: "Private monitoring",
 	}
 	got, err := appconfig.GetAll()
 	if err != nil {
@@ -110,7 +105,7 @@ func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 	}
 
 	repeat := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
-		Username: "other", Password: "Another-password1", Sitename: "Other", MetricDSN: "./data/metrics.db",
+		Username: "other", Password: "Another-password1", Sitename: "Other",
 	})
 	if repeat.Code != http.StatusConflict {
 		t.Fatalf("repeat install status = %d, want %d", repeat.Code, http.StatusConflict)
@@ -119,12 +114,14 @@ func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 
 func TestInstallRejectsUnknownDSN(t *testing.T) {
 	r, db, _ := setupInstallRouter(t)
-	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
-		Username: "admin", Password: "Strong-password1", Sitename: "Komari",
-		MetricDSN: "not-a-recognized-dsn",
+	response := performJSON(r, http.MethodPost, APIPath+"/complete", map[string]any{
+		"username":   "admin",
+		"password":   "Strong-password1",
+		"sitename":   "Komari",
+		"metric_dsn": "not-a-recognized-dsn",
 	})
 	if response.Code != http.StatusBadRequest {
-		t.Fatalf("unknown DSN status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
+		t.Fatalf("retired metric DSN status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
 	}
 	var count int64
 	if err := db.Model(&models.User{}).Count(&count).Error; err != nil || count != 0 {

@@ -42,9 +42,8 @@ func New(options Options) *App {
 	return &App{listenAddr: options.ListenAddr, reload: NewReloadManager()}
 }
 
-// Cache returns the process cache boundary. A nil cache is never exposed to
-// callers: before initialization, and when Redis is disabled or unavailable,
-// the safe Noop implementation is returned.
+// Cache returns the process cache boundary. Before mandatory Redis finishes
+// initializing, callers receive the safe Noop implementation.
 func (a *App) Cache() cache.Cache {
 	if a.cacheStore == nil {
 		return cache.Noop{}

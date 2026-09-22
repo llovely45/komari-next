@@ -1,5 +1,8 @@
 # PostgreSQL、Redis 与模块化插件技术设计
 
+> [!NOTE]
+> 本文是演进设计和模块化路线，不是当前运行时 API/部署合同。当前已实现的启动参数、数据库边界和 Redis 生命周期以[配置参考](./configuration.md)与[当前技术架构](./technical-overview.md)为准：正常入口使用 PostgreSQL，指标表复用主库连接池，Redis 使用容器内固定的 127.0.0.1:6379。
+
 ## 1. 设计范围
 
 本设计覆盖 Komari 服务端的模块生命周期、主数据库、指标数据库、Redis 缓存和第三方插件进程。前端主题和现有 JavaScript 插件保持兼容，不在本阶段替换为新的前端框架。
@@ -53,14 +56,12 @@ type Host struct {
 主数据库使用 GORM 的 PostgreSQL Dialector，连接参数来自：
 
 ~~~text
-KOMARI_DB_TYPE=postgres
 KOMARI_DB_DSN=postgres://user:password@host:5432/komari?sslmode=require
 ~~~
 
 命令行参数提供等价覆盖：
 
 ~~~text
---db-type postgres
 --db-dsn <dsn>
 ~~~
 
@@ -70,10 +71,10 @@ SQLite 仍保留为兼容模式。新部署的生产文档使用 PostgreSQL；�
 
 ### 3.2 指标数据库
 
-指标库继续使用现有 pkg/metric 的 database/sql 路径，生产默认指向 PostgreSQL：
+当前实现使用现有 pkg/metric 的 database/sql 路径，并复用主 PostgreSQL 连接池；后续如果实测证明控制面与指标写入需要隔离，目标架构才考虑独立 schema、数据库或连接池：
 
-- 控制面表和指标表使用不同连接池。
-- 指标写入池与只读池分开。
+- 控制面表和指标表通过 metric_ 前缀区分。
+- 主连接池当前由 dbcore 统一管理；不要在指标设置中再创建第二个连接池。
 - 采集写入使用有界内存队列和微批事务。
 - 统计查询使用批量 series 查询，避免 N+1。
 
@@ -103,10 +104,11 @@ type Cache interface {
 
 `cache.ErrMiss` 是唯一的 miss 信号。`GetJSON` 的契约为：命中返回 `(true, nil)`；miss 返回 `(false, err)` 且 `errors.Is(err, cache.ErrMiss)` 为真（实现可以包装该错误）；后端故障返回 `(false, err)`，且该错误必须与 `cache.ErrMiss` 区分。`(false, nil)` 不表示 miss，包括 Noop 实现；调用方对 miss 或其他 Redis 后端错误都回源 PostgreSQL，只有源库读取成功后才 best-effort 回填。
 
-服务端通过 `KOMARI_REDIS_URL` 或 `--redis-url` 启用 Redis；未配置时使用
-Noop 实现。URL 解析失败只记录警告并降级为 Noop，不能阻止主数据库和服务端
-启动。Redis 客户端由 `internal/server.App` 持有，并在关闭阶段统一释放；缓存
-适配器仍不向模块暴露原始 go-redis 客户端。
+当前服务端固定连接容器内的 127.0.0.1:6379；Docker 入口脚本负责启动 Redis，
+直接运行二进制时由运维环境提供 Redis。正常启动会 Ping 该服务，连接失败会阻止
+普通路由启动。未来若需要外置 Redis，应先扩展稳定的配置合同；不能把环境变量或
+可选 Noop 行为写进当前部署文档。Redis 客户端由 internal/server.App 持有，并在
+关闭阶段统一释放；缓存适配器仍不向模块暴露原始 go-redis 客户端。
 
 ### 缓存规则
 
@@ -219,7 +221,7 @@ plugin_event_batch
 ## 9. 本阶段实现边界
 
 本阶段先提交可以独立测试的基础设施：模块注册表、PostgreSQL 连接适配、Redis
-Cache Port/实现及可选的服务端生命周期接入、Go 插件稳定 wire data/validation
+Cache Port/实现及服务端生命周期接入、Go 插件稳定 wire data/validation
 类型和测试。Unix-socket framing、Protobuf `.proto` 字段编号、service/method、
 握手响应和插件进程管理必须在后续 process-manager 阶段推进；业务功能的完整迁移、
 Redis read-through 热点接入、SQLite 到 PostgreSQL 的数据切换和 Rust 外部服务

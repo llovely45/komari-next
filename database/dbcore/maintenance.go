@@ -14,19 +14,43 @@ import (
 
 var maintenanceMu sync.Mutex
 
-// StorageSize returns the bytes occupied by the main SQLite database and its
-// WAL/SHM sidecar files.
+// StorageSize returns the physical size of the active main database. PostgreSQL
+// is the supported application backend; the SQLite branch remains only for
+// legacy compatibility helpers.
 func StorageSize() (int64, error) {
+	if flags.IsPostgres() {
+		db, err := GetSQLDB()
+		if err != nil {
+			return 0, fmt.Errorf("get main database connection: %w", err)
+		}
+		var size int64
+		if err := db.QueryRow("SELECT pg_database_size(current_database())").Scan(&size); err != nil {
+			return 0, fmt.Errorf("query PostgreSQL database size: %w", err)
+		}
+		return size, nil
+	}
 	if !flags.IsSQLite() {
-		return 0, errors.New("main database size is only available for SQLite")
+		return 0, errors.New("unsupported main database backend")
 	}
 	return sqliteFileSetSize(resolveDatabaseFile())
 }
 
-// ReclaimSpace checkpoints the main database WAL and rewrites the SQLite file.
+// ReclaimSpace runs the backend-specific physical maintenance operation.
 func ReclaimSpace(ctx context.Context) error {
+	if flags.IsPostgres() {
+		maintenanceMu.Lock()
+		defer maintenanceMu.Unlock()
+		db, err := GetSQLDB()
+		if err != nil {
+			return fmt.Errorf("get main database connection: %w", err)
+		}
+		if _, err := db.ExecContext(ctx, "VACUUM (FULL, ANALYZE)"); err != nil {
+			return fmt.Errorf("vacuum PostgreSQL main database: %w", err)
+		}
+		return nil
+	}
 	if !flags.IsSQLite() {
-		return errors.New("main database maintenance is only supported for SQLite")
+		return errors.New("unsupported main database backend")
 	}
 
 	maintenanceMu.Lock()

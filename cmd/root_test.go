@@ -13,7 +13,7 @@ const rootFlagSmokeEnv = "KOMARI_ROOT_FLAG_SMOKE"
 
 func TestSecretBearingFlagDefaultsDoNotExposeEnvironment(t *testing.T) {
 	if os.Getenv(rootFlagSmokeEnv) == "1" {
-		for _, name := range []string{"db-dsn", "redis-url"} {
+		for _, name := range []string{"db-dsn"} {
 			flag := RootCmd.PersistentFlags().Lookup(name)
 			if flag == nil {
 				t.Fatalf("flag %q is not registered", name)
@@ -21,6 +21,12 @@ func TestSecretBearingFlagDefaultsDoNotExposeEnvironment(t *testing.T) {
 			if flag.DefValue != "" {
 				t.Fatalf("flag %q has a non-empty default", name)
 			}
+		}
+		if RootCmd.PersistentFlags().Lookup("redis-url") != nil {
+			t.Fatal("redis-url must not be registered")
+		}
+		if RootCmd.PersistentFlags().Lookup("db-type") != nil || RootCmd.PersistentFlags().Lookup("database") != nil {
+			t.Fatal("legacy database selector flags must not be registered")
 		}
 
 		help := RootCmd.UsageString()
@@ -46,14 +52,10 @@ func TestSecretBearingFlagDefaultsDoNotExposeEnvironment(t *testing.T) {
 
 func TestRootPersistentPreRunUsesEnvironmentWhenFlagsUnchanged(t *testing.T) {
 	preserveRootConfigState(t)
-	t.Setenv("KOMARI_DB_TYPE", "postgresql")
 	t.Setenv("KOMARI_DB_DSN", "postgres://env-user:env-password@db.example/komari")
-	t.Setenv("KOMARI_REDIS_URL", "redis://:env-password@redis.example:6379/0")
 
-	flags.DatabaseType = flags.DatabaseTypeSQLite
 	flags.DatabaseDSN = ""
-	flags.RedisURL = ""
-	for _, name := range []string{"db-type", "db-dsn", "redis-url"} {
+	for _, name := range []string{"db-dsn"} {
 		RootCmd.PersistentFlags().Lookup(name).Changed = false
 	}
 
@@ -62,25 +64,17 @@ func TestRootPersistentPreRunUsesEnvironmentWhenFlagsUnchanged(t *testing.T) {
 	}
 	RootCmd.PersistentPreRun(RootCmd, nil)
 
-	if flags.DatabaseType != "postgresql" || flags.DatabaseDSN == "" || flags.RedisURL == "" {
-		t.Fatal("environment values were not applied for unchanged flags")
+	if flags.DatabaseType != flags.DatabaseTypePostgres || flags.DatabaseDSN == "" {
+		t.Fatalf("environment values were not applied for unchanged flags: type=%q dsn=%q", flags.DatabaseType, flags.DatabaseDSN)
 	}
 }
 
 func TestRootPersistentPreRunPreservesExplicitCLIValues(t *testing.T) {
 	preserveRootConfigState(t)
-	t.Setenv("KOMARI_DB_TYPE", "postgresql")
 	t.Setenv("KOMARI_DB_DSN", "postgres://env-user:env-password@db.example/komari")
-	t.Setenv("KOMARI_REDIS_URL", "redis://:env-password@redis.example:6379/0")
 
-	if err := RootCmd.PersistentFlags().Set("db-type", flags.DatabaseTypeSQLite); err != nil {
-		t.Fatalf("set db-type flag: %v", err)
-	}
 	if err := RootCmd.PersistentFlags().Set("db-dsn", "postgres://cli-user:cli-password@localhost/komari"); err != nil {
 		t.Fatalf("set db-dsn flag: %v", err)
-	}
-	if err := RootCmd.PersistentFlags().Set("redis-url", "redis://:cli-password@localhost:6379/0"); err != nil {
-		t.Fatalf("set redis-url flag: %v", err)
 	}
 
 	if RootCmd.PersistentPreRun == nil {
@@ -88,29 +82,24 @@ func TestRootPersistentPreRunPreservesExplicitCLIValues(t *testing.T) {
 	}
 	RootCmd.PersistentPreRun(RootCmd, nil)
 
-	if flags.DatabaseType != flags.DatabaseTypeSQLite ||
-		!strings.Contains(flags.DatabaseDSN, "cli-user") ||
-		!strings.Contains(flags.RedisURL, "cli-password") {
+	if flags.DatabaseType != flags.DatabaseTypePostgres || !strings.Contains(flags.DatabaseDSN, "cli-user") {
 		t.Fatal("environment values overrode explicitly changed CLI flags")
 	}
 }
 
 func preserveRootConfigState(t *testing.T) {
 	t.Helper()
-	previousType := flags.DatabaseType
 	previousDSN := flags.DatabaseDSN
-	previousRedisURL := flags.RedisURL
-	previousValues := make(map[string]string, 3)
-	previousChanged := make(map[string]bool, 3)
-	for _, name := range []string{"db-type", "db-dsn", "redis-url"} {
+	previousValues := make(map[string]string, 1)
+	previousChanged := make(map[string]bool, 1)
+	for _, name := range []string{"db-dsn"} {
 		flag := RootCmd.PersistentFlags().Lookup(name)
 		previousValues[name] = flag.Value.String()
 		previousChanged[name] = flag.Changed
 	}
 	t.Cleanup(func() {
-		flags.DatabaseType = previousType
+		flags.DatabaseType = flags.DatabaseTypePostgres
 		flags.DatabaseDSN = previousDSN
-		flags.RedisURL = previousRedisURL
 		for name, value := range previousValues {
 			_ = RootCmd.PersistentFlags().Set(name, value)
 			RootCmd.PersistentFlags().Lookup(name).Changed = previousChanged[name]

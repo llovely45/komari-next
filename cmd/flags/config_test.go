@@ -4,10 +4,7 @@ import "testing"
 
 func TestNormalizeDatabaseType(t *testing.T) {
 	tests := map[string]string{
-		"":            DatabaseTypeSQLite,
-		"sqlite":      DatabaseTypeSQLite,
-		" SQLite ":    DatabaseTypeSQLite,
-		"SQLITE":      DatabaseTypeSQLite,
+		"":            DatabaseTypePostgres,
 		"postgres":    DatabaseTypePostgres,
 		"postgresql":  DatabaseTypePostgres,
 		" PostgreSQL": DatabaseTypePostgres,
@@ -20,9 +17,9 @@ func TestNormalizeDatabaseType(t *testing.T) {
 	}
 }
 
-func TestSupportedDatabaseTypesIncludesPostgres(t *testing.T) {
-	if got := SupportedDatabaseTypes(); got != "sqlite, postgres" {
-		t.Fatalf("SupportedDatabaseTypes() = %q, want %q", got, "sqlite, postgres")
+func TestSupportedDatabaseTypesOnlyIncludesPostgres(t *testing.T) {
+	if got := SupportedDatabaseTypes(); got != DatabaseTypePostgres {
+		t.Fatalf("SupportedDatabaseTypes() = %q, want %q", got, DatabaseTypePostgres)
 	}
 }
 

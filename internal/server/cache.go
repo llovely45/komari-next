@@ -2,34 +2,39 @@ package server
 
 import (
 	"context"
-	"strings"
+	"fmt"
+	"time"
 
-	"github.com/komari-monitor/komari/cmd/flags"
 	"github.com/komari-monitor/komari/internal/cache"
-	logger "github.com/komari-monitor/komari/utils/log"
 )
 
-// InitCache initializes the optional Redis cache. Redis is deliberately
-// best-effort: an invalid URL or an unavailable cache configuration must not
-// prevent the PostgreSQL/SQLite source of truth from starting.
+type builtinRedis interface {
+	cache.Cache
+	Ping(context.Context) error
+}
+
+var newBuiltinRedis = func() (builtinRedis, error) {
+	return cache.NewRedis(cache.Options{URL: cache.BuiltinRedisURL})
+}
+
+// InitCache initializes the mandatory container-local Redis cache. Redis is a
+// cache rather than the source of truth, but a missing built-in service is a
+// deployment error and must not be silently hidden by a Noop implementation.
 func (a *App) InitCache() error {
 	if a.cacheStore != nil {
 		return nil
 	}
 
-	redisURL := strings.TrimSpace(flags.RedisURL)
-	if redisURL == "" {
-		a.cacheStore = cache.Noop{}
-		return nil
-	}
-
-	redisCache, err := cache.NewRedis(cache.Options{URL: redisURL})
+	redisCache, err := newBuiltinRedis()
 	if err != nil {
-		// Do not log the URL or the parser error verbatim: Redis URLs may carry
-		// credentials, and configuration errors must not turn them into logs.
-		logger.Warn("server", "Redis cache disabled; falling back to source-of-truth reads", "reason", "invalid Redis URL")
-		a.cacheStore = cache.Noop{}
-		return nil
+		return fmt.Errorf("initialize built-in Redis: %w", err)
+	}
+	pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err = redisCache.Ping(pingCtx)
+	cancel()
+	if err != nil {
+		_ = redisCache.Close()
+		return fmt.Errorf("connect to built-in Redis: %w", err)
 	}
 
 	a.cacheStore = redisCache

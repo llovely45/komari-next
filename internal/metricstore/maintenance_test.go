@@ -112,46 +112,6 @@ func TestInspectStorageRequiresInitializedStore(t *testing.T) {
 	}
 }
 
-func TestCloseStoreContextCancelsMigrationBeforeTakingStoreLock(t *testing.T) {
-	s, err := metric.Open(context.Background(), metric.SQLite(":memory:"))
-	if err != nil {
-		t.Fatalf("open metric store: %v", err)
-	}
-	installTestStore(t, s)
-
-	migrationCtx, cancelMigration := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	if !storeOperations.TryAcquire() {
-		t.Fatal("acquire store operation gate")
-	}
-	storeMigMu.Lock()
-	storeMigCancel = cancelMigration
-	storeMigDone = done
-	storeMigMu.Unlock()
-
-	go func() {
-		<-migrationCtx.Done()
-		storeOperations.Release()
-		storeMigMu.Lock()
-		storeMigCancel = nil
-		storeMigDone = nil
-		close(done)
-		storeMigMu.Unlock()
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := CloseStoreContext(ctx); err != nil {
-		t.Fatalf("close store: %v", err)
-	}
-	if migrationCtx.Err() == nil {
-		t.Fatal("store migration was not canceled before close")
-	}
-	if err := Reload(context.Background()); !errors.Is(err, ErrStoreBusy) {
-		t.Fatalf("reload after close error = %v, want %v", err, ErrStoreBusy)
-	}
-}
-
 func TestStoreOperationWaitsRespectContext(t *testing.T) {
 	if !storeOperations.TryAcquire() {
 		t.Fatal("acquire store operation gate")
@@ -173,23 +133,13 @@ func TestStoreOperationWaitsRespectContext(t *testing.T) {
 
 func installTestStore(t *testing.T, s *metric.Store) {
 	t.Helper()
-	storeMigMu.Lock()
-	previousClosing := storeClosing
-	storeClosing = false
-	storeMigMu.Unlock()
 	storeMu.Lock()
 	previous := store
-	previousFingerprint := storeFingerprint
 	store = s
-	storeFingerprint = "test|memory"
 	storeMu.Unlock()
 	t.Cleanup(func() {
-		storeMigMu.Lock()
-		storeClosing = previousClosing
-		storeMigMu.Unlock()
 		storeMu.Lock()
 		store = previous
-		storeFingerprint = previousFingerprint
 		storeMu.Unlock()
 		_ = s.Close()
 	})

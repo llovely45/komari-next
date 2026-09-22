@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/komari-monitor/komari/internal/metricstore"
 	appconfig "github.com/komari-monitor/komari/internal/config"
+	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/internal/migrations"
 	"github.com/komari-monitor/komari/web/api"
 	"gorm.io/driver/sqlite"
@@ -31,25 +31,15 @@ func setupConfigDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestMetricConfigValidatesSelectedDriverAgainstDSN(t *testing.T) {
+func TestMetricConfigUsesSharedPostgreSQLTables(t *testing.T) {
 	setupConfigDB(t)
 
-	sqliteConfig, err := metricConfig("sqlite", "")
+	sharedConfig, err := metricConfig()
 	if err != nil {
-		t.Fatalf("build default SQLite config: %v", err)
+		t.Fatalf("build shared PostgreSQL config: %v", err)
 	}
-	if sqliteConfig.Driver != "sqlite" || sqliteConfig.DSN != "./data/metrics.db" {
-		t.Fatalf("unexpected default SQLite config: %#v", sqliteConfig)
-	}
-	if _, err := metricConfig("mysql", "./data/metrics.db"); err == nil {
-		t.Fatal("expected mismatched MySQL/SQLite DSN to fail")
-	}
-	postgresConfig, err := metricConfig("postgresql", "host=127.0.0.1 port=5432 user=komari password=secret dbname=komari sslmode=disable")
-	if err != nil {
-		t.Fatalf("build PostgreSQL config: %v", err)
-	}
-	if postgresConfig.Driver != "postgresql" {
-		t.Fatalf("unexpected PostgreSQL driver: %q", postgresConfig.Driver)
+	if sharedConfig.TablePrefix != "metric_" {
+		t.Fatalf("shared metric table prefix = %q, want metric_", sharedConfig.TablePrefix)
 	}
 }
 

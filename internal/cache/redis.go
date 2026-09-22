@@ -13,6 +13,10 @@ import (
 )
 
 const (
+	// BuiltinRedisURL is the only Redis endpoint used by the application. The
+	// Docker image starts Redis on this container-local address; it is never
+	// read from user configuration.
+	BuiltinRedisURL     = "redis://127.0.0.1:6379/0"
 	defaultPrefix       = "komari:v1"
 	defaultDialTimeout  = 5 * time.Second
 	defaultReadTimeout  = 5 * time.Second
@@ -24,6 +28,10 @@ type backend interface {
 	Get(context.Context, string) (string, error)
 	Set(context.Context, string, string, time.Duration) error
 	Delete(context.Context, ...string) error
+}
+
+type pingBackend interface {
+	Ping(context.Context) error
 }
 
 // Redis is a Cache backed by a Redis client. The raw go-redis client is kept
@@ -169,6 +177,20 @@ func (c *Redis) Close() error {
 	return c.closeErr
 }
 
+// Ping verifies that the built-in Redis service is reachable. It is kept
+// separate from NewRedis so cache unit tests can construct an adapter without
+// a live Redis daemon, while application startup can make Redis mandatory.
+func (c *Redis) Ping(ctx context.Context) error {
+	if c == nil || c.backend == nil {
+		return errors.New("redis backend is nil")
+	}
+	backend, ok := c.backend.(pingBackend)
+	if !ok {
+		return nil
+	}
+	return backend.Ping(ctx)
+}
+
 type goRedisBackend struct {
 	client redis.UniversalClient
 }
@@ -187,4 +209,8 @@ func (b *goRedisBackend) Set(ctx context.Context, key, value string, expiry time
 
 func (b *goRedisBackend) Delete(ctx context.Context, keys ...string) error {
 	return b.client.Del(ctx, keys...).Err()
+}
+
+func (b *goRedisBackend) Ping(ctx context.Context) error {
+	return b.client.Ping(ctx).Err()
 }

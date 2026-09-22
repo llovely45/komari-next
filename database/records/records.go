@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/database/models"
+	"github.com/komari-monitor/komari/internal/metricstore"
 )
 
-// 历史监控数据已完全迁移到 metric store（默认 SQLite ./data/metrics.db，或配置的
-// MySQL/PostgreSQL）。旧的 records / records_long_term / gpu_records / ping_records
-// 表仅在启动一次性迁移时作为数据源读取，运行期的读写全部走 metric store。
+// 历史监控数据已完全迁移到共享 PostgreSQL 上的 metric store，并通过 metric_
+// 表名前缀与控制面表分开。旧的 records / records_long_term / gpu_records /
+// ping_records 表仅在启动一次性迁移时作为数据源读取，运行期的读写全部走 metric store。
 //
 // 因此本文件不再保留对旧表的任何读写、压缩（rollup）与流量增量修复逻辑：
 // metric store 自行管理 rollup 与保留策略，旧表压缩已无意义。

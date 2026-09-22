@@ -27,7 +27,6 @@ import (
 	"github.com/komari-monitor/komari/utils/notifier"
 	"github.com/komari-monitor/komari/web/api"
 	"github.com/komari-monitor/komari/web/oauth"
-	recoveryweb "github.com/komari-monitor/komari/web/recovery"
 	"github.com/komari-monitor/komari/web/router"
 	"github.com/komari-monitor/komari/web/security"
 )
@@ -91,10 +90,6 @@ func (a *App) BuildRouter() error {
 	cors := security.NewCorsController(a.settings.CorsOriginCheckEnabled, a.settings.CorsAllowedOrigins)
 	r.Use(cors.Middleware(), api.IdentityMiddleware(), api.PrivateSiteMiddleware(), noStoreAPIResponses())
 
-	// The recovery UI belongs only to its temporary restricted listener.
-	r.GET(recoveryweb.PagePath, func(c *gin.Context) {
-		c.Redirect(http.StatusTemporaryRedirect, "/")
-	})
 	router.Register(r)
 
 	// Plugins are loaded after the router exists so server.route can bind

@@ -6,7 +6,6 @@ import (
 
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/internal/metricstore"
-	"github.com/komari-monitor/komari/internal/config"
 	logger "github.com/komari-monitor/komari/utils/log"
 )
 
@@ -19,7 +18,7 @@ const (
 // only after a store has actually opened.
 func (a *App) ConnectMetricStore() error {
 	if err := metricstore.InitializeStore(); err != nil {
-		return fmt.Errorf("failed to initialize metric store: %s", redactMetricStoreError(err))
+		return fmt.Errorf("failed to initialize shared PostgreSQL metric tables: %w", err)
 	}
 	if !a.metricStoreCleanupAdded {
 		a.addCleanup("metric-store", metricstore.CloseStoreContext)
@@ -28,18 +27,7 @@ func (a *App) ConnectMetricStore() error {
 	return nil
 }
 
-func redactMetricStoreError(err error) string {
-	if err == nil {
-		return ""
-	}
-	dsn := ""
-	if cfg, cfgErr := config.GetManyAs[metricstore.MetricStoreConfig](); cfgErr == nil {
-		dsn = cfg.DSN
-	}
-	return metricstore.RedactConnectionError(err.Error(), dsn)
-}
-
-// ConnectMetricStoreWithRetry retries the monitoring database connection.
+// ConnectMetricStoreWithRetry retries the shared PostgreSQL metric-table connection.
 func (a *App) ConnectMetricStoreWithRetry() error {
 	attempt := 0
 	err := retryMetricStoreConnection(metricStoreReconnectAttempts, metricStoreReconnectInterval, func() error {
@@ -83,8 +71,5 @@ func (a *App) InitStores() error {
 	}
 	metricstore.StartReportBatcher()
 	a.addCleanup("metric-report-batcher", metricstore.StopReportBatcher)
-	// A store-to-store migration holds the exclusive operation lease. Stop it
-	// before flushing queued reports, which need the shared lease to write.
-	a.addCleanup("metric-store-migration", metricstore.StopStoreMigrationForShutdown)
 	return nil
 }

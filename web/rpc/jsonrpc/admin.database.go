@@ -154,9 +154,7 @@ func maintainMainDatabase(ctx context.Context) databaseMaintenanceResult {
 		result.SizeError = "before: " + status.Error
 	}
 
-	if !flags.IsSQLite() {
-		result.Error = "main database maintenance is only supported for SQLite"
-	} else if err := dbcore.ReclaimSpace(ctx); err != nil {
+	if err := dbcore.ReclaimSpace(ctx); err != nil {
 		result.Error = err.Error()
 	} else {
 		result.Success = true

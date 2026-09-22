@@ -13,9 +13,9 @@ var (
 	ErrStoreBusy           = errors.New("metric store is busy")
 )
 
-// StorageInfo describes the physical storage owned by the active metric store.
-// Size remains useful even when the store points at an external database because
-// pkg/metric limits its query to the three tables managed by this Store.
+// StorageInfo describes the physical storage owned by the active metric tables
+// in the shared PostgreSQL database. pkg/metric limits its query to the tables
+// managed by this Store.
 type StorageInfo struct {
 	Driver metric.Driver
 	Action metric.MaintenanceAction

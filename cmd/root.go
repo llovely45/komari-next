@@ -39,14 +39,8 @@ func Execute() {
 // parsed the command line. Secret-bearing values therefore never become
 // pflag DefValue strings and cannot appear in help output.
 func applyEnvironmentDefaults(cmd *cobra.Command, _ []string) {
-	if !configFlagChanged(cmd, "db-type") {
-		flags.DatabaseType = GetEnv("KOMARI_DB_TYPE", flags.DatabaseTypeSQLite)
-	}
 	if !configFlagChanged(cmd, "db-dsn") {
 		flags.DatabaseDSN = GetEnv("KOMARI_DB_DSN", "")
-	}
-	if !configFlagChanged(cmd, "redis-url") {
-		flags.RedisURL = GetEnv("KOMARI_REDIS_URL", "")
 	}
 }
 
@@ -58,9 +52,8 @@ func configFlagChanged(cmd *cobra.Command, name string) bool {
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseType, "db-type", "t", flags.DatabaseTypeSQLite, "Database type (sqlite or postgres) [env: KOMARI_DB_TYPE]")
-	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseFile, "database", "d", "./data/komari.db", "SQLite database file path")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseDSN, "db-dsn", "", "PostgreSQL connection DSN [env: KOMARI_DB_DSN]")
-	RootCmd.PersistentFlags().StringVar(&flags.RedisURL, "redis-url", "", "Redis URL for the optional cache layer [env: KOMARI_REDIS_URL]")
+	// PostgreSQL is the sole application database. Metrics reuse this same DSN
+	// and are separated by table prefix; there is no second database selector.
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseDSN, "db-dsn", "", "PostgreSQL connection DSN shared by application and metric tables [env: KOMARI_DB_DSN]")
 	RootCmd.PersistentPreRun = applyEnvironmentDefaults
 }

@@ -2,9 +2,9 @@ package metricstore
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,14 +16,34 @@ import (
 
 var (
 	store             *metric.Store
-	storeFingerprint  string
 	storeMu           sync.RWMutex
 	storeInitMu       sync.Mutex
 	storeOperations   = newStoreOperationGate()
 	compactOperations = newStoreOperationGate()
+	sharedDBMu        sync.RWMutex
+	sharedDB          *sql.DB
 )
 
 var ErrCompactInProgress = errors.New("metric store compact already in progress")
+
+// SetSharedDatabase supplies the primary PostgreSQL pool to the metric store.
+// Keeping this setter in the integration layer avoids an import cycle between
+// dbcore's legacy migration package and the metric store package.
+func SetSharedDatabase(db *sql.DB) {
+	sharedDBMu.Lock()
+	sharedDB = db
+	sharedDBMu.Unlock()
+}
+
+func sharedDatabase() (*sql.DB, error) {
+	sharedDBMu.RLock()
+	db := sharedDB
+	sharedDBMu.RUnlock()
+	if db == nil {
+		return nil, fmt.Errorf("shared PostgreSQL database is not initialized")
+	}
+	return db, nil
+}
 
 // ErrStructureUpgradeRequired reports that the configured store must be
 // migrated by the restricted startup guide before it can be opened normally.
@@ -53,14 +73,7 @@ func openStoreWithDefaultRetention(ctx context.Context, cfg *MetricStoreConfig, 
 	return s, nil
 }
 
-// OpenStore opens an isolated metric store using the supplied configuration.
-// It is used by the pre-start upgrade flow before the process-wide store is
-// initialized. The caller owns the returned store and must close it.
-// func OpenStore(ctx context.Context, cfg *MetricStoreConfig) (*metric.Store, error) {
-// 	return openStore(ctx, cfg)
-// }
-
-// OpenStoreForMigration opens an isolated target and uses the legacy data span
+// OpenStoreForMigration opens a view over the shared target and uses the legacy data span
 // as the initial retention for definitions that do not exist yet. Existing
 // definitions keep their configured retention, including an explicit zero.
 func OpenStoreForMigration(ctx context.Context, cfg *MetricStoreConfig, legacyRetentionDays int) (*metric.Store, error) {
@@ -107,7 +120,7 @@ func InitializeStore() error {
 		return fmt.Errorf("failed to load metric store config: %w", err)
 	}
 
-	// metric store 始终启用；未配置时默认 SQLite（./data/metrics.db）。
+	// The metric store is always enabled and uses the shared PostgreSQL pool.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -118,79 +131,9 @@ func InitializeStore() error {
 
 	storeMu.Lock()
 	store = s
-	storeFingerprint = targetFingerprint(cfg)
 	storeMu.Unlock()
-	clearStoreClosing()
 
-	logger.Infof("metricstore", "Metric store initialized successfully (driver=%s)", ResolveDriverFromConfig(cfg.Driver, cfg.DSN))
-	return nil
-}
-
-// RecoverStore opens, persists, and activates a replacement store selected
-// from the restricted recovery page. It records that target as the current
-// manual-migration source, but does not copy data from the unavailable store.
-func RecoverStore(ctx context.Context, cfg *MetricStoreConfig) error {
-	if cfg == nil {
-		return fmt.Errorf("metric store recovery config is nil")
-	}
-
-	storeInitMu.Lock()
-	defer storeInitMu.Unlock()
-	if err := storeOperations.Acquire(ctx); err != nil {
-		return fmt.Errorf("wait for metric store operations before recovery: %w", err)
-	}
-	defer storeOperations.Release()
-	if isStoreClosing() {
-		return ErrStoreBusy
-	}
-
-	recovered := *cfg
-	recovered.DSN = strings.TrimSpace(recovered.DSN)
-	recovered.Driver = string(ResolveDriverFromConfig(recovered.Driver, recovered.DSN))
-	restructureRequired, err := structureUpgradeRequiredForConfig(ctx, &recovered)
-	if err != nil {
-		return err
-	}
-	if restructureRequired {
-		target := targetFingerprint(&recovered)
-		if err := config.SetMany(map[string]any{
-			MetricDBDriverKey:  recovered.Driver,
-			MetricDBDSNKey:     recovered.DSN,
-			MigrationTargetKey: target,
-		}); err != nil {
-			return fmt.Errorf("save recovered metric store config: %w", err)
-		}
-		logger.Infof("metricstore", "Metric store connection recovered; structure upgrade is required (driver=%s)", recovered.Driver)
-		return nil
-	}
-	s, err := openStore(ctx, &recovered)
-	if err != nil {
-		return err
-	}
-
-	target := targetFingerprint(&recovered)
-	if err := config.SetMany(map[string]any{
-		MetricDBDriverKey:  recovered.Driver,
-		MetricDBDSNKey:     recovered.DSN,
-		MigrationTargetKey: target,
-	}); err != nil {
-		_ = s.Close()
-		return fmt.Errorf("save recovered metric store config: %w", err)
-	}
-
-	storeMu.Lock()
-	old := store
-	store = s
-	storeFingerprint = target
-	storeMu.Unlock()
-	clearStoreClosing()
-
-	if old != nil {
-		if closeErr := old.Close(); closeErr != nil {
-			logger.Errorf("metricstore", "Failed to close previous metric store during recovery: %v", closeErr)
-		}
-	}
-	logger.Infof("metricstore", "Metric store recovered successfully (driver=%s)", recovered.Driver)
+	logger.Infof("metricstore", "Metric store initialized successfully (driver=postgresql, table_prefix=%s)", cfg.TablePrefix)
 	return nil
 }
 
@@ -198,17 +141,13 @@ func RecoverStore(ctx context.Context, cfg *MetricStoreConfig) error {
 // metric store 始终启用：用新配置打开并建表（内部已 Ping 校验连接），
 // 成功后再替换运行中的 store，最后关闭旧实例。任何失败都会保留旧 store 不变。
 //
-// 注意：Reload 只切换运行中的连接，不会把旧目标（如 SQLite）中的历史数据
-// 搬运到新目标（如 MySQL/PostgreSQL）。跨库数据迁移必须由管理员手动启动。
+// Reload only rebuilds the Store view over the same PostgreSQL pool; it never
+// switches databases or copies metric history between backends.
 func Reload(ctx context.Context) error {
 	if err := storeOperations.Acquire(ctx); err != nil {
 		return fmt.Errorf("wait for metric store operations before reload: %w", err)
 	}
 	defer storeOperations.Release()
-	if isStoreClosing() {
-		return ErrStoreBusy
-	}
-
 	cfg, err := config.GetManyAs[MetricStoreConfig]()
 	if err != nil {
 		return fmt.Errorf("failed to load metric store config: %w", err)
@@ -244,7 +183,6 @@ func Reload(ctx context.Context) error {
 	storeMu.Lock()
 	old := store
 	store = s
-	storeFingerprint = targetFingerprint(cfg)
 	storeMu.Unlock()
 	if old != nil {
 		if cerr := old.Close(); cerr != nil {
@@ -252,26 +190,21 @@ func Reload(ctx context.Context) error {
 		}
 	}
 
-	logger.Infof("metricstore", "Metric store reloaded successfully (driver=%s)", ResolveDriverFromConfig(cfg.Driver, cfg.DSN))
+	logger.Infof("metricstore", "Metric store reloaded successfully (driver=postgresql, table_prefix=%s)", cfg.TablePrefix)
 	return nil
 }
 
-// GetStore 获取 metric store 实例（如果未启用返回 nil）
+// GetStore 获取 metric store 实例。
 func GetStore() *metric.Store {
 	storeMu.RLock()
 	defer storeMu.RUnlock()
 	return store
 }
 
-// CloseStoreContext stops the asynchronous store migration before taking the
-// store write lock, so shutdown cannot wait forever on the migration's lease.
+// CloseStoreContext closes the current Store view without closing the shared
+// PostgreSQL pool, which remains owned by dbcore.
 func CloseStoreContext(ctx context.Context) error {
-	if err := stopStoreMigrationForClose(ctx); err != nil {
-		clearStoreClosing()
-		return err
-	}
 	if err := storeOperations.Acquire(ctx); err != nil {
-		clearStoreClosing()
 		return fmt.Errorf("wait for metric store operations before close: %w", err)
 	}
 	defer storeOperations.Release()
@@ -282,9 +215,7 @@ func CloseStoreContext(ctx context.Context) error {
 	if store != nil {
 		err := store.Close()
 		store = nil
-		storeFingerprint = ""
 		return err
 	}
-	storeFingerprint = ""
 	return nil
 }

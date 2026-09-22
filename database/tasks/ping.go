@@ -48,8 +48,8 @@ func AddPingTask(clients []string, defaultOn bool, name string, target, task_typ
 }
 
 func DeletePingTask(id []uint) error {
-	// The metric store is independent from the main database, so clean it first
-	// to avoid leaving history that can no longer be addressed through the task.
+	// Clean the shared metric tables first so deleting the task cannot leave
+	// history that can no longer be addressed through the task.
 	if err := DeletePingRecords(id); err != nil {
 		return err
 	}

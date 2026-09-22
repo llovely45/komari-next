@@ -43,7 +43,12 @@ runs:
           git clone --depth=1 "${{ inputs.repository }}" komari-web
         fi
         cd komari-web
-        npm install
+        node ../scripts/patch-komari-web.mjs .
+        # The upstream package-lock contains a self-referential "file:" entry
+        # for komari-web. npm 11 cannot load that virtual tree, while the
+        # package manifest resolves correctly when lockfile generation is
+        # disabled for this disposable build checkout.
+        npm install --package-lock=false
         npm run build
         cd ..
 

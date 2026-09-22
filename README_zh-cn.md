@@ -12,7 +12,7 @@ Komari 是一款轻量级的自托管服务器监控工具，旨在提供简单�
 > [!WARNING]
 > Komari 是一款自托管的监控/控制程序，仅应部署在你拥有或已获得授权管理的系统上。在未获授权的情况下部署、访问、持久化、执行命令及从事其他滥用行为，用户需要自行承担部署和使用 Komari 的责任。开发者不对未经授权或滥用行为及其后果承担责任。
 
-[文档](https://www.komari.wiki/) | [Telegram 群](https://t.me/komari_monitor)
+[官方文档](https://www.komari.wiki/) | [仓库技术文档](./docs/README.md) | [API 文档](./docs/api/README.md) | [Telegram 群](https://t.me/komari_monitor)
 
 ## 特性
 

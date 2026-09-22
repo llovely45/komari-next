@@ -1,7 +1,6 @@
 package install
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/database/models"
 	appconfig "github.com/komari-monitor/komari/internal/config"
-	"github.com/komari-monitor/komari/internal/metricstore"
 	logger "github.com/komari-monitor/komari/utils/log"
 	"github.com/komari-monitor/komari/web/api"
 	"github.com/komari-monitor/komari/web/backup"
@@ -40,7 +38,6 @@ type completeRequest struct {
 	Password    string `json:"password"`
 	Sitename    string `json:"sitename"`
 	Description string `json:"description"`
-	MetricDSN   string `json:"metric_dsn"`
 }
 
 type Controller struct {
@@ -129,19 +126,7 @@ func (c *Controller) complete(ctx *gin.Context) {
 	c.state = "completing"
 	c.mu.Unlock()
 
-	cfg, err := metricConfig(request)
-	if err == nil {
-		pingCtx, cancel := context.WithTimeout(ctx.Request.Context(), 15*time.Second)
-		err = metricstore.TestConnection(pingCtx, cfg)
-		cancel()
-	}
-	if err != nil {
-		c.fail()
-		api.RespondError(ctx, http.StatusBadRequest, fmt.Sprintf("monitoring database connection failed: %v", err))
-		return
-	}
-
-	if err := c.createAccountAndSettings(&request, cfg); err != nil {
+	if err := c.createAccountAndSettings(&request); err != nil {
 		c.fail()
 		api.RespondError(ctx, http.StatusInternalServerError, "failed to save installation settings")
 		return
@@ -164,7 +149,7 @@ func (c *Controller) fail() {
 	c.mu.Unlock()
 }
 
-func (c *Controller) createAccountAndSettings(request *completeRequest, cfg *metricstore.MetricStoreConfig) error {
+func (c *Controller) createAccountAndSettings(request *completeRequest) error {
 	var count int64
 	if err := c.db.Model(&models.User{}).Count(&count).Error; err != nil {
 		return err
@@ -177,10 +162,8 @@ func (c *Controller) createAccountAndSettings(request *completeRequest, cfg *met
 		return err
 	}
 	settings := map[string]any{
-		appconfig.SitenameKey:         request.Sitename,
-		appconfig.DescriptionKey:      request.Description,
-		metricstore.MetricDBDriverKey: cfg.Driver,
-		metricstore.MetricDBDSNKey:    cfg.DSN,
+		appconfig.SitenameKey:    request.Sitename,
+		appconfig.DescriptionKey: request.Description,
 	}
 	if err := appconfig.SetMany(settings); err != nil {
 		_ = accounts.DeleteAccountByUsernameWithDB(c.db, user.Username)
@@ -193,7 +176,6 @@ func validateRequest(request *completeRequest) error {
 	request.Username = strings.TrimSpace(request.Username)
 	request.Sitename = strings.TrimSpace(request.Sitename)
 	request.Description = strings.TrimSpace(request.Description)
-	request.MetricDSN = strings.TrimSpace(request.MetricDSN)
 	if request.Username == "" || utf8.RuneCountInString(request.Username) > 64 {
 		return fmt.Errorf("username must be between 1 and 64 characters")
 	}
@@ -210,9 +192,6 @@ func validateRequest(request *completeRequest) error {
 	if utf8.RuneCountInString(request.Description) > 1000 {
 		return fmt.Errorf("site description must be at most 1000 characters")
 	}
-	if request.MetricDSN == "" {
-		return fmt.Errorf("monitoring database DSN is required")
-	}
 	return nil
 }
 
@@ -224,15 +203,6 @@ func hasStrongPassword(password string) bool {
 		digit = digit || unicode.IsDigit(char)
 	}
 	return upper && lower && digit
-}
-
-func metricConfig(request completeRequest) (*metricstore.MetricStoreConfig, error) {
-	dsn := request.MetricDSN
-	driver, ok := metricstore.InferDriverFromDSN(dsn)
-	if !ok {
-		return nil, fmt.Errorf("cannot infer monitoring database type from DSN")
-	}
-	return &metricstore.MetricStoreConfig{Driver: string(driver), DSN: dsn}, nil
 }
 
 func decodeJSON(ctx *gin.Context, target any) error {

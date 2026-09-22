@@ -2,6 +2,7 @@ package dbcore
 
 import (
 	"archive/zip"
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -346,6 +347,16 @@ func GetDBInstance() *gorm.DB {
 	return instance
 }
 
+// GetSQLDB returns the process-wide PostgreSQL connection pool. Metric Store
+// uses this exact pool so application and metric tables always share one DSN
+// and one transaction/connection boundary.
+func GetSQLDB() (*sql.DB, error) {
+	if instance == nil {
+		return nil, fmt.Errorf("database is not initialized")
+	}
+	return instance.DB()
+}
+
 // Close 关闭底层数据库连接，供关闭流程调用。
 func Close() error {
 	if instance == nil {
@@ -483,8 +494,8 @@ func doInitialize() error {
 
 	// 自动迁移模型
 	//
-	// 注意：负载/GPU/ping 历史监控数据运行期全部走 metric store（默认 SQLite
-	// ./data/metrics.db，或配置的 MySQL/PostgreSQL）。旧的 records /
+	// 注意：负载/GPU/ping 历史监控数据运行期全部走共享 PostgreSQL 上的
+	// metric store，并通过 metric_ 表名前缀与控制面表分开。旧的 records /
 	// records_long_term / gpu_records / ping_records 表不再建表、不再写入。
 	// 若升级时旧表仍存在，管理员可通过升级向导显式导入并清理。
 	// models.Record / models.PingRecord / models.GPURecord 结构体仍作为

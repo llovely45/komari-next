@@ -457,6 +457,23 @@ func SetMany(cst map[string]any) error {
 	return nil
 }
 
+// DeleteKeys removes retired configuration entries without exposing a second
+// persistence API to callers. It is used by startup migrations when a setting
+// is no longer part of the supported configuration contract.
+func DeleteKeys(keys ...string) error {
+	filtered := make([]string, 0, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			filtered = append(filtered, key)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return db.Where("key IN ?", filtered).Delete(&ConfigItem{}).Error
+}
+
 type ConfigEvent struct {
 	Old map[string]any
 	New map[string]any

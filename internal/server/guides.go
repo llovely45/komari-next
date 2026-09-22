@@ -4,12 +4,11 @@ import (
 	"context"
 
 	"github.com/komari-monitor/komari/database/dbcore"
-	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/database/models"
+	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/internal/migrations"
 	installweb "github.com/komari-monitor/komari/web/install"
 	migrationweb "github.com/komari-monitor/komari/web/migration"
-	recoveryweb "github.com/komari-monitor/komari/web/recovery"
 )
 
 // InstallRequired reports whether the instance still needs the first-run guide.
@@ -57,19 +56,6 @@ func (a *App) RunInstallGuide() (bool, error) {
 		pagePath:   installweb.PagePath,
 		missingAPI: "Not found in install mode",
 		logMessage: "First-run installation guide is available on %s",
-	})
-}
-
-// RunMetricStoreRecovery keeps login available while exposing only the
-// administrator-protected metric-store recovery API.
-func (a *App) RunMetricStoreRecovery(initialErr error) (bool, error) {
-	a.initOAuth()
-	return a.runGuideServer(recoveryweb.NewController(initialErr, metricStoreReconnectAttempts), guideServerConfig{
-		pagePath:         recoveryweb.PagePath,
-		missingAPI:       "Not found in database recovery mode",
-		logMessage:       "Metric store recovery is available on %s",
-		requireIdentity:  true,
-		restrictedStatic: true,
 	})
 }
 

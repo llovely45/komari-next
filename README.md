@@ -12,7 +12,7 @@ Komari is a lightweight, self-hosted server monitoring solution. It provides a s
 > [!WARNING]
 > Komari is a self-hosted monitoring and control application. Deploy it only on systems you own or are authorized to manage. You are solely responsible for how you deploy and use Komari. The developers accept no liability for unauthorized access, persistence, command execution, other misuse, or any resulting consequences.
 
-[Documentation](https://www.komari.wiki/) | [Telegram Group](https://t.me/komari_monitor)
+[Documentation](https://www.komari.wiki/) | [Repository technical docs](./docs/README.md) | [API reference](./docs/api/README.md) | [Telegram Group](https://t.me/komari_monitor)
 
 ## Features
 

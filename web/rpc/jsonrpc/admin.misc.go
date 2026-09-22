@@ -112,16 +112,12 @@ func adminGetSettings(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	return cst, nil
 }
 
-// metricStoreConfigKeys 是与 metrics 独立数据库及 rollup 策略相关、需要
-// 触发连接测试 + 热重载的配置键。
+// metricStoreConfigKeys 是与共享 PostgreSQL 指标表和 rollup 策略相关、
+// 需要触发校验 + 热重载的配置键。独立指标数据库键已退役。
 //
 // 注意：metric_store_enabled 已废弃（metric store 始终启用），不再纳入此集合。
 var metricStoreConfigKeys = map[string]struct{}{
-	metricstore.MetricDBDriverKey:                         {},
-	metricstore.MetricDBDSNKey:                            {},
 	metricstore.MetricTablePrefixKey:                      {},
-	metricstore.MetricMaxOpenConnsKey:                     {},
-	metricstore.MetricMaxIdleConnsKey:                     {},
 	metricstore.MetricRollupMinuteRetentionMinutesKey:     {},
 	metricstore.MetricRollupFiveMinuteRetentionMinutesKey: {},
 	metricstore.MetricRollupHourRetentionHoursKey:         {},
@@ -143,27 +139,15 @@ func adminEditSettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid or missing request body: "+err.Error(), nil)
 	}
 	removeRetiredLowResourceMode(cfg)
+	removeRetiredMetricBackendSettings(cfg)
 	if err := validateMetricRollupSettingChanges(cfg); err != nil {
 		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
 	}
 
-	// 若本次修改涉及 metrics 数据库配置，则在落库前先用「当前配置 + 本次改动」
-	// 合并出的目标配置做一次连接测试。metric store 始终启用，只要触及 metrics
-	// 相关键就做连接测试，避免把明显无效的连接串保存给用户。
+	// 若本次修改涉及 metrics 表配置，则在落库前使用同一个主 PostgreSQL
+	// 连接池做一次轻量连接测试，避免把明显无效的表配置保存给用户。
 	touchedMetric := metricKeysTouched(cfg)
 	if touchedMetric {
-		// 数据库类型不再由前端显式选择，而是根据 DSN 自动推断后写回配置，
-		// 使后续连接测试、热重载和初始化都使用一致的 driver。
-		if v, ok := cfg[metricstore.MetricDBDSNKey]; ok {
-			if dsn, ok := v.(string); ok {
-				dsn = strings.TrimSpace(dsn)
-				cfg[metricstore.MetricDBDSNKey] = dsn
-				if driver, inferred := metricstore.InferDriverFromDSN(dsn); inferred {
-					cfg[metricstore.MetricDBDriverKey] = string(driver)
-				}
-			}
-		}
-
 		merged, err := mergedMetricConfig(cfg)
 		if err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to resolve metric store config: "+err.Error(), nil)
@@ -223,6 +207,18 @@ func removeRetiredLowResourceMode(cfg map[string]interface{}) {
 	delete(cfg, "low_resource_mode")
 }
 
+func removeRetiredMetricBackendSettings(cfg map[string]interface{}) {
+	for _, key := range []string{
+		"metric_db_driver",
+		"metric_db_dsn",
+		"metric_max_open_conns",
+		"metric_max_idle_conns",
+		"metric_migration_target",
+	} {
+		delete(cfg, key)
+	}
+}
+
 // mergedMetricConfig 读取当前持久化的 metric store 配置，并把本次请求中涉及的
 // metrics 相关键覆盖上去，得到「即将生效」的目标配置，用于落库前的连接测试。
 func mergedMetricConfig(cfg map[string]interface{}) (*metricstore.MetricStoreConfig, error) {
@@ -231,27 +227,10 @@ func mergedMetricConfig(cfg map[string]interface{}) (*metricstore.MetricStoreCon
 		return nil, err
 	}
 
-	if v, ok := cfg[metricstore.MetricDBDriverKey]; ok {
-		if s, ok := v.(string); ok {
-			merged.Driver = s
-		}
-	}
-
-	if v, ok := cfg[metricstore.MetricDBDSNKey]; ok {
-		if s, ok := v.(string); ok {
-			merged.DSN = s
-		}
-	}
 	if v, ok := cfg[metricstore.MetricTablePrefixKey]; ok {
 		if s, ok := v.(string); ok {
 			merged.TablePrefix = s
 		}
-	}
-	if v, ok := cfg[metricstore.MetricMaxOpenConnsKey]; ok {
-		merged.MaxOpenConns = toInt(v, merged.MaxOpenConns)
-	}
-	if v, ok := cfg[metricstore.MetricMaxIdleConnsKey]; ok {
-		merged.MaxIdleConns = toInt(v, merged.MaxIdleConns)
 	}
 	if v, ok := cfg[metricstore.MetricRollupMinuteRetentionMinutesKey]; ok {
 		merged.RollupMinuteRetentionMinutes = toInt(v, merged.RollupMinuteRetentionMinutes)

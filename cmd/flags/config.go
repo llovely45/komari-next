@@ -3,16 +3,30 @@ package flags
 import "strings"
 
 const (
-	DatabaseTypeSQLite   = "sqlite"
+	// DatabaseTypePostgres is the only database backend exposed by the
+	// application. The legacy SQLite constant remains here temporarily so
+	// package-level compatibility tests and old migration helpers can still
+	// compile; it is not selectable from the CLI or environment.
 	DatabaseTypePostgres = "postgres"
+
+	// DatabaseTypeSQLite is retained for legacy, explicit migration code. New
+	// application startup never selects it.
+	DatabaseTypeSQLite = "sqlite"
 )
 
 var (
-	// 数据库配置
-	DatabaseType string // 数据库类型：sqlite 或 postgres
-	DatabaseFile string // SQLite 数据库文件路径；兼容旧版 --database 参数
-	DatabaseDSN  string // PostgreSQL 连接串
-	RedisURL     string // Redis 连接 URL；为空时禁用缓存
+	// DatabaseType is fixed to PostgreSQL for application startup. It remains a
+	// variable because the old test/migration helpers still exercise their
+	// compatibility paths directly.
+	DatabaseType = DatabaseTypePostgres
+	// DatabaseFile and RedisURL are legacy compatibility variables. They are no
+	// longer wired to CLI flags or environment variables and are ignored by the
+	// normal runtime.
+	DatabaseFile string
+	RedisURL     string
+	// DatabaseDSN is the single PostgreSQL connection string shared by the main
+	// tables and metric tables.
+	DatabaseDSN string
 
 	Listen string
 )
@@ -20,7 +34,7 @@ var (
 func NormalizeDatabaseType(databaseType string) string {
 	databaseType = strings.ToLower(strings.TrimSpace(databaseType))
 	if databaseType == "" {
-		return DatabaseTypeSQLite
+		return DatabaseTypePostgres
 	}
 	if databaseType == "postgresql" {
 		return DatabaseTypePostgres
@@ -42,5 +56,5 @@ func IsPostgres() bool {
 }
 
 func SupportedDatabaseTypes() string {
-	return DatabaseTypeSQLite + ", " + DatabaseTypePostgres
+	return DatabaseTypePostgres
 }
