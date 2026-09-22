@@ -511,7 +511,7 @@
               <p>复制下面的一行命令，在服务器终端执行即可完成 Docker 安装。</p>
             </div>
             <div class="install-command" role="group" aria-label="Docker 一键安装命令">
-              <code id="docker-install-command">curl -fsSL https://raw.githubusercontent.com/llovely45/komari-next/page/site/install-docker.sh | sudo bash</code>
+              <code id="docker-install-command">curl -fsSL https://当前页面域名/install-docker.sh | sudo bash</code>
               <button class="copy-command" id="copy-docker-command" type="button" aria-label="复制 Docker 安装命令" title="复制命令">
                 <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="10" height="10" rx="2"></rect>
@@ -536,6 +536,12 @@
         const command = document.getElementById("docker-install-command");
         const copyButton = document.getElementById("copy-docker-command");
         if (!command || !copyButton) return;
+
+        const pageProtocol = window.location.protocol;
+        if (pageProtocol === "http:" || pageProtocol === "https:") {
+          const installerURL = new URL("./install-docker.sh", window.location.href);
+          command.textContent = `curl -fsSL ${installerURL.href} | sudo bash`;
+        }
 
         const copyText = async (value) => {
           if (navigator.clipboard && window.isSecureContext) {
