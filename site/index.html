@@ -142,8 +142,60 @@
         margin-top: 34px;
       }
 
-      .deploy-actions {
-        margin-top: 0;
+      .install-command {
+        display: flex;
+        grid-column: 1 / -1;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        margin-top: 4px;
+        padding: 8px 8px 8px 18px;
+        border: 1px solid rgba(110, 231, 249, 0.24);
+        border-radius: 16px;
+        background: rgba(3, 12, 26, 0.58);
+      }
+
+      .install-command code {
+        min-width: 0;
+        flex: 1;
+        overflow-x: auto;
+        color: var(--text);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        white-space: nowrap;
+      }
+
+      .copy-command {
+        display: inline-grid;
+        flex: 0 0 auto;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(110, 231, 249, 0.3);
+        border-radius: 12px;
+        color: var(--primary);
+        background: rgba(110, 231, 249, 0.1);
+        cursor: pointer;
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+
+      .copy-command:hover {
+        transform: translateY(-2px);
+        border-color: var(--primary);
+        background: rgba(110, 231, 249, 0.18);
+      }
+
+      .copy-command.copied {
+        color: #a7f3d0;
+        border-color: rgba(167, 243, 208, 0.58);
+        background: rgba(167, 243, 208, 0.12);
+      }
+
+      .copy-command svg {
+        width: 20px;
+        height: 20px;
       }
 
       .button {
@@ -394,7 +446,6 @@
               用直观的 Web 界面帮助你持续了解服务器状态。
             </p>
             <div class="actions">
-              <a class="button primary" href="./install-docker.sh" download="install-docker.sh">一键 Docker 安装</a>
               <a class="button secondary" href="https://github.com/llovely45/komari-next" target="_blank" rel="noreferrer">查看项目源码</a>
               <a class="button secondary" href="https://www.komari.wiki/install/quick-start" target="_blank" rel="noreferrer">阅读安装指南</a>
             </div>
@@ -457,11 +508,16 @@
             <div>
               <p class="eyebrow">Get started</p>
               <h2 id="deploy-title">准备好开始监控了吗？</h2>
-              <p>下载 Docker 一键安装脚本，自动启动 Komari、PostgreSQL 和内置 Redis。</p>
+              <p>复制下面的一行命令，在服务器终端执行即可完成 Docker 安装。</p>
             </div>
-            <div class="actions deploy-actions">
-              <a class="button primary" href="./install-docker.sh" download="install-docker.sh">下载一键安装脚本</a>
-              <a class="button secondary" href="https://github.com/llovely45/komari-next" target="_blank" rel="noreferrer">前往 GitHub</a>
+            <div class="install-command" role="group" aria-label="Docker 一键安装命令">
+              <code id="docker-install-command">curl -fsSL https://raw.githubusercontent.com/llovely45/komari-next/page/site/install-docker.sh | sudo bash</code>
+              <button class="copy-command" id="copy-docker-command" type="button" aria-label="复制 Docker 安装命令" title="复制命令">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+                  <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
             </div>
           </div>
         </section>
@@ -474,5 +530,48 @@
         <a class="text-link" href="https://www.komari.wiki" target="_blank" rel="noreferrer">komari.wiki ↗</a>
       </div>
     </footer>
+
+    <script>
+      (() => {
+        const command = document.getElementById("docker-install-command");
+        const copyButton = document.getElementById("copy-docker-command");
+        if (!command || !copyButton) return;
+
+        const copyText = async (value) => {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(value);
+            return;
+          }
+
+          const textarea = document.createElement("textarea");
+          textarea.value = value;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          const copied = document.execCommand("copy");
+          textarea.remove();
+          if (!copied) throw new Error("copy command failed");
+        };
+
+        copyButton.addEventListener("click", async () => {
+          try {
+            await copyText(command.textContent.trim());
+            copyButton.classList.add("copied");
+            copyButton.setAttribute("aria-label", "已复制 Docker 安装命令");
+            copyButton.setAttribute("title", "已复制");
+            window.setTimeout(() => {
+              copyButton.classList.remove("copied");
+              copyButton.setAttribute("aria-label", "复制 Docker 安装命令");
+              copyButton.setAttribute("title", "复制命令");
+            }, 1600);
+          } catch {
+            copyButton.setAttribute("aria-label", "复制失败，请手动选择命令");
+            copyButton.setAttribute("title", "复制失败");
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
