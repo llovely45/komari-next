@@ -8,6 +8,8 @@ if (!frontendRoot) {
   throw new Error("usage: patch-komari-web.mjs <komari-web-directory>");
 }
 
+const projectRepository = "llovely45/komari-next";
+
 function replaceOnce(source, needle, replacement, label) {
   const index = source.indexOf(needle);
   if (index < 0) throw new Error(`frontend patch target not found: ${label}`);
@@ -509,6 +511,31 @@ async function patchFrontendBranding() {
   await writeFile(marketPath, marketSource);
 }
 
+async function patchVersionUpdateSource() {
+  const path = join(frontendRoot, "src/components/admin/AdminPanelBar.tsx");
+  let source = await readFile(path, "utf8");
+  const upstreamReleaseURL =
+    "https://api.github.com/repos/komari-monitor/komari/releases?per_page=100";
+  const projectReleaseURL =
+    `https://api.github.com/repos/${projectRepository}/releases?per_page=100`;
+  const occurrences = source.split(upstreamReleaseURL).length - 1;
+  if (occurrences !== 1) {
+    throw new Error(
+      `frontend version update source changed: expected 1 upstream release URL, found ${occurrences}`,
+    );
+  }
+  source = replaceOnce(
+    source,
+    upstreamReleaseURL,
+    projectReleaseURL,
+    "project version update source",
+  );
+  if (source.includes(upstreamReleaseURL) || !source.includes(projectReleaseURL)) {
+    throw new Error("frontend version update source was not replaced");
+  }
+  await writeFile(path, source);
+}
+
 await patchInstallPage();
 await patchMetricsSettingsPage();
 await patchDatabaseMigrationPage();
@@ -517,3 +544,4 @@ await patchFrontendBuildCompatibility();
 await patchAgentInstallCommands();
 await patchInstallTranslations();
 await patchFrontendBranding();
+await patchVersionUpdateSource();
