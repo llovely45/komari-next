@@ -1,0 +1,268 @@
+#komari-command-clipboard-root {
+  --kcc-bg: #171717;
+  --kcc-panel: #202020;
+  --kcc-border: #353535;
+  --kcc-muted: #a1a1aa;
+  --kcc-text: #e5e5e5;
+  --kcc-accent: #55a7e0;
+  --kcc-danger: #ef6b68;
+  color: var(--kcc-text);
+  font: 13px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#komari-command-clipboard-root,
+#komari-command-clipboard-root * {
+  box-sizing: border-box;
+}
+
+#komari-command-clipboard-root .kcc-toggle {
+  position: fixed;
+  z-index: 100001;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: grid;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-items: center;
+  padding: 0;
+  border: 1px solid var(--kcc-border);
+  border-radius: 50%;
+  background: #2b2b2b;
+  color: var(--kcc-text);
+  cursor: pointer;
+  box-shadow: 0 4px 16px #0008;
+}
+
+#komari-command-clipboard-root .kcc-toggle svg {
+  width: 21px;
+  height: 21px;
+}
+
+#komari-command-clipboard-root .kcc-toggle[hidden] {
+  display: none;
+}
+
+#komari-command-clipboard-root .kcc-toggle:hover,
+#komari-command-clipboard-root button:hover {
+  filter: brightness(1.15);
+}
+
+#komari-command-clipboard-root .kcc-panel {
+  position: fixed;
+  z-index: 100000;
+  top: 40px;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: min(380px, 92vw);
+  flex-direction: column;
+  border-left: 1px solid var(--kcc-border);
+  background: var(--kcc-bg);
+  box-shadow: -12px 0 32px #0008;
+  transform: translateX(102%);
+  transition: transform 160ms ease;
+}
+
+#komari-command-clipboard-root .kcc-panel[data-open="true"] {
+  transform: translateX(0);
+}
+
+#komari-command-clipboard-root .kcc-header,
+#komari-command-clipboard-root .kcc-toolbar,
+#komari-command-clipboard-root .kcc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+#komari-command-clipboard-root .kcc-header {
+  border-bottom: 1px solid var(--kcc-border);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+#komari-command-clipboard-root .kcc-toolbar {
+  border-bottom: 1px solid #2c2c2c;
+}
+
+#komari-command-clipboard-root .kcc-footer {
+  min-height: 34px;
+  justify-content: flex-start;
+  border-top: 1px solid #2c2c2c;
+  color: var(--kcc-muted);
+  font-size: 11px;
+}
+
+#komari-command-clipboard-root .kcc-items {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+}
+
+#komari-command-clipboard-root .kcc-card {
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--kcc-border);
+  border-radius: 7px;
+  background: var(--kcc-panel);
+}
+
+#komari-command-clipboard-root .kcc-card-head,
+#komari-command-clipboard-root .kcc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#komari-command-clipboard-root .kcc-card-title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#komari-command-clipboard-root .kcc-code {
+  max-height: 190px;
+  margin: 8px 0;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 5px;
+  background: #111;
+  color: #d4d4d4;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#komari-command-clipboard-root .kcc-remark {
+  margin: 4px 0 9px;
+  color: var(--kcc-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#komari-command-clipboard-root button,
+#komari-command-clipboard-root select,
+#komari-command-clipboard-root input,
+#komari-command-clipboard-root textarea {
+  color: inherit;
+  font: inherit;
+}
+
+#komari-command-clipboard-root .kcc-button {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid var(--kcc-border);
+  border-radius: 5px;
+  background: #303030;
+  color: var(--kcc-text);
+  cursor: pointer;
+}
+
+#komari-command-clipboard-root .kcc-button-primary {
+  border-color: #3677a5;
+  background: #245d83;
+}
+
+#komari-command-clipboard-root .kcc-button-danger {
+  color: #ffb4b1;
+}
+
+#komari-command-clipboard-root .kcc-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#komari-command-clipboard-root .kcc-current-session {
+  overflow: hidden;
+  padding: 8px 12px;
+  border-bottom: 1px solid #2c2c2c;
+  color: var(--kcc-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#komari-command-clipboard-root .kcc-dialog {
+  width: min(540px, calc(100vw - 28px));
+  max-height: min(85vh, 760px);
+  padding: 0;
+  border: 1px solid #454545;
+  border-radius: 9px;
+  background: var(--kcc-bg);
+  color: var(--kcc-text);
+  box-shadow: 0 24px 80px #000b;
+}
+
+#komari-command-clipboard-root .kcc-dialog::backdrop {
+  background: #0009;
+}
+
+#komari-command-clipboard-root .kcc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+#komari-command-clipboard-root .kcc-form h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+#komari-command-clipboard-root .kcc-form label {
+  color: var(--kcc-muted);
+  font-size: 12px;
+}
+
+#komari-command-clipboard-root .kcc-form input,
+#komari-command-clipboard-root .kcc-form textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--kcc-border);
+  border-radius: 5px;
+  background: #101010;
+  outline: none;
+}
+
+#komari-command-clipboard-root .kcc-form input:focus,
+#komari-command-clipboard-root .kcc-form textarea:focus {
+  border-color: var(--kcc-accent);
+}
+
+#komari-command-clipboard-root .kcc-form textarea {
+  min-height: 180px;
+  resize: vertical;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+#komari-command-clipboard-root .kcc-form .kcc-weight {
+  max-width: 140px;
+}
+
+#komari-command-clipboard-root .kcc-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+#komari-command-clipboard-root .kcc-empty,
+#komari-command-clipboard-root .kcc-loading {
+  padding: 24px 12px;
+  color: var(--kcc-muted);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  #komari-command-clipboard-root .kcc-panel {
+    top: 0;
+    width: min(360px, 92vw);
+  }
+}

@@ -1,9 +1,11 @@
 package terminal
 
 import (
+	"errors"
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/komari-monitor/komari/web/connection"
 )
 
@@ -19,6 +21,58 @@ type TerminalSession struct {
 
 var TerminalSessionsMutex = &sync.Mutex{}
 var TerminalSessions = make(map[string]*TerminalSession)
+
+var (
+	ErrSessionNotFound  = errors.New("terminal session not found")
+	ErrSessionNotActive = errors.New("terminal session is not connected")
+)
+
+type ActiveSession struct {
+	RequestID string `json:"request_id"`
+	UUID      string `json:"uuid"`
+}
+
+// ActiveSessionsForUser returns only live terminal sessions owned by userUUID.
+// The request IDs are scoped to that owner by the HTTP handler before they are
+// exposed to the caller.
+func ActiveSessionsForUser(userUUID string) []ActiveSession {
+	TerminalSessionsMutex.Lock()
+	defer TerminalSessionsMutex.Unlock()
+
+	active := make([]ActiveSession, 0)
+	for requestID, session := range TerminalSessions {
+		if session == nil || session.UserUUID != userUUID || session.Browser == nil ||
+			session.Agent == nil || !session.Forwarding {
+			continue
+		}
+		active = append(active, ActiveSession{RequestID: requestID, UUID: session.UUID})
+	}
+	return active
+}
+
+// WriteSessionInput writes raw terminal input to a live browser terminal
+// session. It does not interpret or log the input; callers decide whether the
+// bytes represent text, a command, or another terminal control sequence.
+func WriteSessionInput(requestID, userUUID string, input []byte) (string, error) {
+	TerminalSessionsMutex.Lock()
+	session := TerminalSessions[requestID]
+	if session == nil || session.UserUUID != userUUID {
+		TerminalSessionsMutex.Unlock()
+		return "", ErrSessionNotFound
+	}
+	if session.Browser == nil || session.Agent == nil || !session.Forwarding {
+		TerminalSessionsMutex.Unlock()
+		return "", ErrSessionNotActive
+	}
+	agent := session.Agent
+	uuid := session.UUID
+	TerminalSessionsMutex.Unlock()
+
+	if err := agent.WriteMessage(websocket.BinaryMessage, input); err != nil {
+		return uuid, ErrSessionNotActive
+	}
+	return uuid, nil
+}
 
 // 与 v2 事件队列 TTL 对齐，被控端短暂离线后会话仍可恢复。
 const terminalSessionRetention = 5 * time.Minute

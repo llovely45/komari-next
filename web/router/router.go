@@ -83,6 +83,14 @@ func registerAdminRoutes(r *gin.Engine) {
 	g := r.Group("/api/admin", api.RequireRole(api.RoleAdmin))
 	admin.RegisterPprofRoutes(g)
 
+	// Generic terminal session APIs for frontend extensions. Session ownership
+	// is checked against the authenticated administrator in the handlers.
+	terminalSessions := g.Group("/terminal/sessions")
+	{
+		terminalSessions.GET("", terminal.ListAdminTerminalSessions)
+		terminalSessions.POST("/:request_id/input", terminal.WriteAdminTerminalInput)
+	}
+
 	// --- 二进制/流/重定向类，保留 REST handler ---
 	g.GET("/download/backup", admin.DownloadBackup)
 	uploadHandler := admin.NewArchiveUploadHandler()

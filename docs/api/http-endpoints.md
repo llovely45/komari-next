@@ -116,6 +116,8 @@ Agent v2 消息和文件数据面说明见 [Agent v2 协议](./agent-v2.md)。
 | `GET` | `/api/admin/client/:uuid/token` | `admin:getClientToken`，结果平铺 |
 | `POST` | `/api/admin/client/order` | `admin:orderClients`，body 为 `uuid -> weight` 映射 |
 | `GET` | `/api/admin/client/:uuid/terminal` | 浏览器端终端 WebSocket；新建会话时需要 2FA |
+| `GET` | `/api/admin/terminal/sessions` | 返回当前管理员拥有且在线的终端会话；`data` 项包含 `request_id`、`uuid`、`client_name` |
+| `POST` | `/api/admin/terminal/sessions/:request_id/input` | body 为 `{"data":"..."}`；向当前管理员拥有的在线会话写入原始 UTF-8 输入，解码后单帧最大 1 MiB，不自动追加回车；不存在会话返回 `404`，会话暂不可写返回 `409` |
 | `POST` | `/api/admin/client/:uuid/file/upload` | 远程文件上传控制面，查询 `operation=init|chunk|merge|cancel` |
 | `GET`、`HEAD` | `/api/admin/client/:uuid/file/download` | 远程文件下载；查询 `path`，支持单 Range |
 | `GET` | `/api/admin/client/:uuid/file/preview-token` | 创建 10 分钟文件预览 Token；查询 `path` |
