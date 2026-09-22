@@ -79,3 +79,8 @@ const (
 	ThemeMarketSourcesKey         = "theme_market_sources"
 	PluginMarketSourcesKey        = "plugin_market_sources"
 )
+
+const (
+	ThemeMarketPersonalSourceSeededKey  = "theme_market_personal_source_seeded"
+	PluginMarketPersonalSourceSeededKey = "plugin_market_personal_source_seeded"
+)

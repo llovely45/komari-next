@@ -91,18 +91,53 @@ func defaultThemeMarketSources() []ThemeMarketSource {
 	}}
 }
 
-func initialThemeMarketSources() []ThemeMarketSource {
-	sources := defaultThemeMarketSources()
-	return append(sources, ThemeMarketSource{
+func personalThemeMarketSource() ThemeMarketSource {
+	return ThemeMarketSource{
 		ID:      "llovely45-themes",
 		Name:    "llovely45 Theme Source",
 		URL:     "https://komari-next.pages.dev/theme-market/v1.json",
 		Enabled: true,
-	})
+	}
+}
+
+func initialThemeMarketSources() []ThemeMarketSource {
+	sources := defaultThemeMarketSources()
+	return append(sources, personalThemeMarketSource())
 }
 
 func getThemeMarketSources() ([]ThemeMarketSource, error) {
-	return config.GetAs[[]ThemeMarketSource](config.ThemeMarketSourcesKey, initialThemeMarketSources())
+	sources, err := config.GetAs[[]ThemeMarketSource](config.ThemeMarketSourcesKey, initialThemeMarketSources())
+	if err != nil {
+		return nil, err
+	}
+	seeded, err := config.GetAs[bool](config.ThemeMarketPersonalSourceSeededKey, false)
+	if err != nil {
+		return nil, err
+	}
+	if seeded {
+		return sources, nil
+	}
+
+	personalSource := personalThemeMarketSource()
+	if !containsThemeMarketSource(sources, personalSource) {
+		sources = append(sources, personalSource)
+	}
+	if err := saveThemeMarketSources(sources); err != nil {
+		return nil, err
+	}
+	if err := config.Set(config.ThemeMarketPersonalSourceSeededKey, true); err != nil {
+		return nil, err
+	}
+	return sources, nil
+}
+
+func containsThemeMarketSource(sources []ThemeMarketSource, target ThemeMarketSource) bool {
+	for _, source := range sources {
+		if source.ID == target.ID || source.URL == target.URL {
+			return true
+		}
+	}
+	return false
 }
 
 func saveThemeMarketSources(sources []ThemeMarketSource) error {

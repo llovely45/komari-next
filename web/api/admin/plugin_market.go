@@ -79,18 +79,53 @@ func defaultPluginMarketSources() []PluginMarketSource {
 	}}
 }
 
-func initialPluginMarketSources() []PluginMarketSource {
-	sources := defaultPluginMarketSources()
-	return append(sources, PluginMarketSource{
+func personalPluginMarketSource() PluginMarketSource {
+	return PluginMarketSource{
 		ID:      "llovely45-plugins",
 		Name:    "llovely45 Plugin Source",
 		URL:     "https://komari-next.pages.dev/plugin-market/v1.json",
 		Enabled: true,
-	})
+	}
+}
+
+func initialPluginMarketSources() []PluginMarketSource {
+	sources := defaultPluginMarketSources()
+	return append(sources, personalPluginMarketSource())
 }
 
 func getPluginMarketSources() ([]PluginMarketSource, error) {
-	return config.GetAs[[]PluginMarketSource](config.PluginMarketSourcesKey, initialPluginMarketSources())
+	sources, err := config.GetAs[[]PluginMarketSource](config.PluginMarketSourcesKey, initialPluginMarketSources())
+	if err != nil {
+		return nil, err
+	}
+	seeded, err := config.GetAs[bool](config.PluginMarketPersonalSourceSeededKey, false)
+	if err != nil {
+		return nil, err
+	}
+	if seeded {
+		return sources, nil
+	}
+
+	personalSource := personalPluginMarketSource()
+	if !containsPluginMarketSource(sources, personalSource) {
+		sources = append(sources, personalSource)
+	}
+	if err := savePluginMarketSources(sources); err != nil {
+		return nil, err
+	}
+	if err := config.Set(config.PluginMarketPersonalSourceSeededKey, true); err != nil {
+		return nil, err
+	}
+	return sources, nil
+}
+
+func containsPluginMarketSource(sources []PluginMarketSource, target PluginMarketSource) bool {
+	for _, source := range sources {
+		if source.ID == target.ID || source.URL == target.URL {
+			return true
+		}
+	}
+	return false
 }
 
 func savePluginMarketSources(sources []PluginMarketSource) error {
