@@ -142,6 +142,10 @@
         margin-top: 34px;
       }
 
+      .deploy-actions {
+        margin-top: 0;
+      }
+
       .button {
         display: inline-flex;
         align-items: center;
@@ -390,7 +394,8 @@
               用直观的 Web 界面帮助你持续了解服务器状态。
             </p>
             <div class="actions">
-              <a class="button primary" href="https://github.com/llovely45/komari-next" target="_blank" rel="noreferrer">查看项目源码</a>
+              <a class="button primary" href="./install-docker.sh" download="install-docker.sh">一键 Docker 安装</a>
+              <a class="button secondary" href="https://github.com/llovely45/komari-next" target="_blank" rel="noreferrer">查看项目源码</a>
               <a class="button secondary" href="https://www.komari.wiki/install/quick-start" target="_blank" rel="noreferrer">阅读安装指南</a>
             </div>
           </div>
@@ -452,9 +457,12 @@
             <div>
               <p class="eyebrow">Get started</p>
               <h2 id="deploy-title">准备好开始监控了吗？</h2>
-              <p>访问项目仓库，查看 Docker、二进制文件和源码构建等安装方式。</p>
+              <p>下载 Docker 一键安装脚本，自动启动 Komari、PostgreSQL 和内置 Redis。</p>
             </div>
-            <a class="button primary" href="https://github.com/llovely45/komari-next" target="_blank" rel="noreferrer">前往 GitHub</a>
+            <div class="actions deploy-actions">
+              <a class="button primary" href="./install-docker.sh" download="install-docker.sh">下载一键安装脚本</a>
+              <a class="button secondary" href="https://github.com/llovely45/komari-next" target="_blank" rel="noreferrer">前往 GitHub</a>
+            </div>
           </div>
         </section>
       </div>
