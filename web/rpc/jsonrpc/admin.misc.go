@@ -111,6 +111,8 @@ func adminGetSettings(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	}
 	delete(cst, config.ThemeMarketPersonalSourceSeededKey)
 	delete(cst, config.PluginMarketPersonalSourceSeededKey)
+	delete(cst, config.ThemeMarketPersonalSourceRenamedKey)
+	delete(cst, config.PluginMarketPersonalSourceRenamedKey)
 	return cst, nil
 }
 

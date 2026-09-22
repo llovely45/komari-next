@@ -81,6 +81,8 @@ const (
 )
 
 const (
-	ThemeMarketPersonalSourceSeededKey  = "theme_market_personal_source_seeded"
-	PluginMarketPersonalSourceSeededKey = "plugin_market_personal_source_seeded"
+	ThemeMarketPersonalSourceSeededKey   = "theme_market_personal_source_seeded"
+	PluginMarketPersonalSourceSeededKey  = "plugin_market_personal_source_seeded"
+	ThemeMarketPersonalSourceRenamedKey  = "theme_market_personal_source_renamed"
+	PluginMarketPersonalSourceRenamedKey = "plugin_market_personal_source_renamed"
 )
