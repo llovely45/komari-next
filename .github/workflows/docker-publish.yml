@@ -181,6 +181,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ env.IMAGE_VERSION }}
+            type=raw,value=latest
             type=sha,format=short
 
       - name: Build and push Docker image
