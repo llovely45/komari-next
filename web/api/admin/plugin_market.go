@@ -79,8 +79,18 @@ func defaultPluginMarketSources() []PluginMarketSource {
 	}}
 }
 
+func initialPluginMarketSources() []PluginMarketSource {
+	sources := defaultPluginMarketSources()
+	return append(sources, PluginMarketSource{
+		ID:      "llovely45-plugins",
+		Name:    "llovely45 Plugin Source",
+		URL:     "https://komari-next.pages.dev/plugin-market/v1.json",
+		Enabled: true,
+	})
+}
+
 func getPluginMarketSources() ([]PluginMarketSource, error) {
-	return config.GetAs[[]PluginMarketSource](config.PluginMarketSourcesKey, defaultPluginMarketSources())
+	return config.GetAs[[]PluginMarketSource](config.PluginMarketSourcesKey, initialPluginMarketSources())
 }
 
 func savePluginMarketSources(sources []PluginMarketSource) error {
@@ -111,11 +121,12 @@ func ListPluginMarketSources(c *gin.Context) {
 }
 
 func CreatePluginMarketSource(c *gin.Context) {
-	var source PluginMarketSource
-	if err := c.ShouldBindJSON(&source); err != nil {
+	var request marketSourceRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		api.RespondError(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
+	source := PluginMarketSource{Name: request.Name, URL: request.URL, Enabled: request.enabledByDefault()}
 	var err error
 	source, err = normalizePluginMarketSource(source)
 	if err != nil {

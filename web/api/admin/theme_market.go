@@ -34,6 +34,16 @@ type ThemeMarketSource struct {
 	Enabled bool   `json:"enabled"`
 }
 
+type marketSourceRequest struct {
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	Enabled *bool  `json:"enabled"`
+}
+
+func (request marketSourceRequest) enabledByDefault() bool {
+	return request.Enabled == nil || *request.Enabled
+}
+
 type ThemeMarketTheme struct {
 	Name        any    `json:"name"`
 	Short       string `json:"short"`
@@ -81,8 +91,18 @@ func defaultThemeMarketSources() []ThemeMarketSource {
 	}}
 }
 
+func initialThemeMarketSources() []ThemeMarketSource {
+	sources := defaultThemeMarketSources()
+	return append(sources, ThemeMarketSource{
+		ID:      "llovely45-themes",
+		Name:    "llovely45 Theme Source",
+		URL:     "https://komari-next.pages.dev/theme-market/v1.json",
+		Enabled: true,
+	})
+}
+
 func getThemeMarketSources() ([]ThemeMarketSource, error) {
-	return config.GetAs[[]ThemeMarketSource](config.ThemeMarketSourcesKey, defaultThemeMarketSources())
+	return config.GetAs[[]ThemeMarketSource](config.ThemeMarketSourcesKey, initialThemeMarketSources())
 }
 
 func saveThemeMarketSources(sources []ThemeMarketSource) error {
@@ -121,11 +141,12 @@ func ListThemeMarketSources(c *gin.Context) {
 }
 
 func CreateThemeMarketSource(c *gin.Context) {
-	var source ThemeMarketSource
-	if err := c.ShouldBindJSON(&source); err != nil {
+	var request marketSourceRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		api.RespondError(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
+	source := ThemeMarketSource{Name: request.Name, URL: request.URL, Enabled: request.enabledByDefault()}
 	var err error
 	source, err = normalizeThemeMarketSource(source)
 	if err != nil {
