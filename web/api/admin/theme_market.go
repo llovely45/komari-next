@@ -75,9 +75,9 @@ var themeMarketCache = struct {
 func defaultThemeMarketSources() []ThemeMarketSource {
 	return []ThemeMarketSource{{
 		ID:      "official",
-		Name:    "komari-next Official",
+		Name:    "Komari Official",
 		URL:     defaultThemeMarketURL,
-		Enabled: true,
+		Enabled: false,
 	}}
 }
 

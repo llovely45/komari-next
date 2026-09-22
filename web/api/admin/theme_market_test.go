@@ -66,3 +66,17 @@ func TestThemeMarketI18nTextAndSourceOnlyEntry(t *testing.T) {
 		t.Fatalf("validateThemeMarketTheme() error = %v", err)
 	}
 }
+
+func TestDefaultThemeMarketSourceIsDisabledOfficialRepo(t *testing.T) {
+	sources := defaultThemeMarketSources()
+	if len(sources) != 1 {
+		t.Fatalf("defaultThemeMarketSources() = %#v, want exactly one source", sources)
+	}
+	source := sources[0]
+	if source.ID != "official" || source.Name != "Komari Official" || source.Enabled {
+		t.Fatalf("defaultThemeMarketSources() = %#v, want disabled Komari Official source", source)
+	}
+	if source.URL != "https://raw.githubusercontent.com/komari-monitor/theme-market/main/v1.json" {
+		t.Fatalf("default theme market URL = %q", source.URL)
+	}
+}

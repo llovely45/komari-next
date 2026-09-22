@@ -51,14 +51,14 @@ func TestPluginMarketI18nTextAndSourceOnlyEntry(t *testing.T) {
 	}
 }
 
-func TestDefaultPluginMarketSourcePointsToOfficialRepo(t *testing.T) {
+func TestDefaultPluginMarketSourceIsDisabledOfficialRepo(t *testing.T) {
 	sources := defaultPluginMarketSources()
 	if len(sources) != 1 {
 		t.Fatalf("defaultPluginMarketSources() = %#v, want exactly one source", sources)
 	}
 	source := sources[0]
-	if source.ID != "official" || !source.Enabled {
-		t.Fatalf("defaultPluginMarketSources() = %#v, want enabled official source", source)
+	if source.ID != "official" || source.Name != "Komari Official" || source.Enabled {
+		t.Fatalf("defaultPluginMarketSources() = %#v, want disabled Komari Official source", source)
 	}
 	if source.URL != "https://raw.githubusercontent.com/komari-monitor/plugin-market/main/v1.json" {
 		t.Fatalf("default plugin market URL = %q", source.URL)

@@ -73,9 +73,9 @@ var pluginMarketCache = struct {
 func defaultPluginMarketSources() []PluginMarketSource {
 	return []PluginMarketSource{{
 		ID:      "official",
-		Name:    "komari-next Official",
+		Name:    "Komari Official",
 		URL:     defaultPluginMarketURL,
-		Enabled: true,
+		Enabled: false,
 	}}
 }
 
