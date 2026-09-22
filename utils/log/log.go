@@ -15,7 +15,7 @@ import (
 var defaultLogger *slog.Logger
 
 // ConsoleHandler keeps console logs concise while retaining structured fields.
-// Example: 2026/07/21 10:51:52 [INFO/SERVER] Starting server on 0.0.0.0:25774 ...
+// Example: 2026/07/21 10:51:52 [INFO/SERVER] Starting server on 0.0.0.0:25775 ...
 type ConsoleHandler struct {
 	w      io.Writer
 	level  slog.Level
