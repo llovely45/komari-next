@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -34,3 +35,11 @@ jobs:
           git checkout -B build origin/build
           git merge --no-edit origin/main
           git push origin build
+
+      - name: Trigger Docker publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run docker-publish.yml \
+            --repo "${{ github.repository }}" \
+            --ref build
