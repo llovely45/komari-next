@@ -51,7 +51,7 @@ func ValidateHandshake(handshake Handshake, approved []Capability) (Handshake, e
 		return Handshake{}, newPluginError("invalid_plugin_version", "plugin version is empty")
 	}
 	if strings.TrimSpace(handshake.KomariAPIVersion) == "" {
-		return Handshake{}, newPluginError("invalid_komari_api_version", "komari API version is empty")
+		return Handshake{}, newPluginError("invalid_komari_api_version", "komari-next API version is empty")
 	}
 
 	allowed, err := validateCapabilityList(approved, "administrator-approved")

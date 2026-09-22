@@ -36,7 +36,7 @@ func (l *RestoreLock) Release() {
 	l.once.Do(restoreMutex.Unlock)
 }
 
-// SaveUploadedBackup validates a Komari backup and stages it for restoration
+// SaveUploadedBackup validates a komari-next backup and stages it for restoration
 // during the next process startup.
 func SaveUploadedBackup(file io.Reader, filename string) error {
 	lock, err := AcquireRestoreLock()

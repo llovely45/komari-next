@@ -1,16 +1,16 @@
-# Komari
+# komari-next
 
 ![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/komari-monitor/komari)
 
-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+![komari-next](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
 
 [English](./README.md) | [简体中文](./README_zh-cn.md)
 
-Komari is a lightweight, self-hosted server monitoring solution. It provides a simple and efficient way to track server performance through a web interface, with metrics collected by a lightweight agent.
+komari-next is a lightweight, self-hosted server monitoring solution. It provides a simple and efficient way to track server performance through a web interface, with metrics collected by a lightweight agent.
 
 > [!WARNING]
-> Komari is a self-hosted monitoring and control application. Deploy it only on systems you own or are authorized to manage. You are solely responsible for how you deploy and use Komari. The developers accept no liability for unauthorized access, persistence, command execution, other misuse, or any resulting consequences.
+> komari-next is a self-hosted monitoring and control application. Deploy it only on systems you own or are authorized to manage. You are solely responsible for how you deploy and use komari-next. The developers accept no liability for unauthorized access, persistence, command execution, other misuse, or any resulting consequences.
 
 [Documentation](https://www.komari.wiki/) | [Repository technical docs](./docs/README.md) | [API reference](./docs/api/README.md) | [Telegram Group](https://t.me/komari_monitor)
 
@@ -31,6 +31,22 @@ Komari is a lightweight, self-hosted server monitoring solution. It provides a s
 
 For instructions on Docker deployment, binary installation, building from source, and updates, see the [installation guide](https://www.komari.wiki/en/install/quick-start).
 
+### One-click Docker installation
+
+<p>
+  <a href="https://raw.githubusercontent.com/llovely45/komari-next/build/install-docker.sh">
+    <img src="https://img.shields.io/badge/Docker-One--click%20Install-2496ED?logo=docker&logoColor=white" alt="One-click Docker installation">
+  </a>
+</p>
+
+With Docker Engine and Docker Compose installed, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/llovely45/komari-next/build/install-docker.sh | sudo bash
+```
+
+The script starts komari-next and PostgreSQL as two containers. Redis is bundled inside the komari-next container and does not expose port `6379`. It installs the current stable image `1.0.3` by default and persists data under `/opt/komari-next`.
+
 ## Screenshots
 
 | Page                | Screenshot                                                                                                                                                             |
@@ -44,7 +60,7 @@ For instructions on Docker deployment, binary installation, building from source
 
 ## Sponsors
 
-Interested in sponsoring Komari? Contact the developer via [email](mailto:komari@akz.moe) or [Telegram](https://t.me/mamomoe).
+Interested in sponsoring komari-next? Contact the developer via [email](mailto:komari@akz.moe) or [Telegram](https://t.me/mamomoe).
 
 | Sponsor                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -54,13 +70,13 @@ Interested in sponsoring Komari? Contact the developer via [email](mailto:komari
 
 ## Contributors
 
-Thanks to everyone who has contributed code, themes, plugins, documentation, translations, bug reports, or feedback to Komari.
+Thanks to everyone who has contributed code, themes, plugins, documentation, translations, bug reports, or feedback to komari-next.
 
-<a href="https://github.com/komari-monitor/komari/graphs/contributors"><img src="https://contributors-img.web.app/image?repo=komari-monitor/komari" alt="Komari contributors" width="600"></a>
+<a href="https://github.com/komari-monitor/komari/graphs/contributors"><img src="https://contributors-img.web.app/image?repo=komari-monitor/komari" alt="komari-next contributors" width="600"></a>
 
 ## Support the Project
 
-If Komari has been useful to you, consider buying me a coffee. Thank you for your support!
+If komari-next has been useful to you, consider buying me a coffee. Thank you for your support!
 
 | WeChat Pay                                                                                                   | TRON Network                                                                                |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |

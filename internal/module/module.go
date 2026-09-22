@@ -1,5 +1,5 @@
 // Package module provides the lifecycle and dependency boundary for built-in
-// Komari modules. It deliberately contains no database, HTTP or plugin
+// komari-next modules. It deliberately contains no database, HTTP or plugin
 // implementation details.
 package module
 
@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-// Module is a trusted, in-process Komari module.
+// Module is a trusted, in-process komari-next module.
 //
 // Modules are initialized and started in dependency order and stopped in the
 // reverse order. External third-party plugins use a separate process protocol

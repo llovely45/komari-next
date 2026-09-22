@@ -382,7 +382,7 @@ jobs:
               appendWithinLimit(sections, `Commit details:\n${buildCommitContext(comparison.commits)}`, AI_CONTEXT_CHAR_LIMIT);
 
               if (webReleaseSection) {
-                appendWithinLimit(sections, `Komari Web release notes for the same tag:\n${webReleaseSection}`, AI_CONTEXT_CHAR_LIMIT);
+                appendWithinLimit(sections, `komari-next Web release notes for the same tag:\n${webReleaseSection}`, AI_CONTEXT_CHAR_LIMIT);
               }
 
               return sections.join("\n\n---\n\n");
@@ -481,9 +481,9 @@ jobs:
                 {
                   role: "system",
                   content: [
-                    "You write accurate release notes for the Komari server project.",
+                    "You write accurate release notes for the komari-next server project.",
                     "Use only the supplied repository context.",
-                    "Include both Komari server changes and Komari Web frontend changes when frontend release notes are supplied.",
+                    "Include both komari-next server changes and komari-next Web frontend changes when frontend release notes are supplied.",
                     "Prioritize user-visible behavior, compatibility or migration notes, operations/deployment changes, security fixes, and important bug fixes.",
                     "Do not invent features or implementation details that are not supported by the context.",
                     "Write concise Markdown in Simplified Chinese.",
@@ -528,11 +528,11 @@ jobs:
 
                 const webBody = clean(webRelease.body);
                 if (!webBody) {
-                  return `## Komari Web Release Notes\n\nKomari Web release [${tag}](${webRelease.html_url}) exists, but its release notes are empty.`;
+                  return `## komari-next Web Release Notes\n\nkomari-next Web release [${tag}](${webRelease.html_url}) exists, but its release notes are empty.`;
                 }
 
                 return [
-                  "## Komari Web Release Notes",
+                  "## komari-next Web Release Notes",
                   "",
                   `Source: [komari-web ${tag}](${webRelease.html_url})`,
                   "",
@@ -540,7 +540,7 @@ jobs:
                 ].join("\n");
               } catch (error) {
                 if (error.status === 404) {
-                  core.info(`Komari Web release ${tag} does not exist yet. Skipping web release notes for now.`);
+                  core.info(`komari-next Web release ${tag} does not exist yet. Skipping web release notes for now.`);
                   return "";
                 }
 

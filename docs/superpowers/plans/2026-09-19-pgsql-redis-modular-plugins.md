@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (\`- [ ]\`) syntax for tracking.
 
-**Goal:** 在保持现有 JavaScript 插件兼容的前提下，为 Komari 建立 Go 模块生命周期、PostgreSQL 主库、Redis 缓存和 Go 外部插件协议基础。
+**Goal:** 在保持现有 JavaScript 插件兼容的前提下，为 komari-next 建立 Go 模块生命周期、PostgreSQL 主库、Redis 缓存和 Go 外部插件协议基础。
 
 **Architecture:** 采用模块化单体。Go 内置模块通过类型化 Host 接口运行；第三方插件作为独立进程，目标是通过版本化 Protobuf/gRPC 协议经 Unix Socket 通信，TCP/TLS 仅作为后续需要时的显式传输选项；首个切片只交付稳定的 wire data/validation，Protobuf 字段编号、service/method、socket framing 和握手响应契约留到后续 process-manager 阶段；JavaScript 插件继续由 Goja 兼容层加载。PostgreSQL 是生产主库和指标库目标，Redis 只做可失效缓存。
 

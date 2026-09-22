@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Redis is intentionally private to this container. Komari always connects to
+# Redis is intentionally private to this container. komari-next always connects to
 # redis://127.0.0.1:6379/0, so no host port or external Redis URL is needed.
 redis-server \
   --bind 127.0.0.1 \

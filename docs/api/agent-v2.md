@@ -1,6 +1,6 @@
 # Agent v2 协议
 
-Agent v2 是 Agent 与 Komari 服务端之间的 JSON-RPC 2.0 协议。它与面向浏览器/管理员的 `/api/rpc2` 方法表不同：Agent 使用客户端 Token 鉴权，并在同一条 HTTP 或 WebSocket 通道上完成监控上报、任务结果、Ping 结果和服务端事件收发。
+Agent v2 是 Agent 与 komari-next 服务端之间的 JSON-RPC 2.0 协议。它与面向浏览器/管理员的 `/api/rpc2` 方法表不同：Agent 使用客户端 Token 鉴权，并在同一条 HTTP 或 WebSocket 通道上完成监控上报、任务结果、Ping 结果和服务端事件收发。
 
 协议类型和字段定义以 [`protocol/v2/jsonrpc.go`](../../protocol/v2/jsonrpc.go) 为准，入口实现位于 [`web/api/client/report_v2.go`](../../web/api/client/report_v2.go)。当前版本没有单独的 OpenAPI/AsyncAPI schema。
 

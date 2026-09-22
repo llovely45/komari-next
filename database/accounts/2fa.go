@@ -9,13 +9,13 @@ import (
 )
 
 var (
-	TwoFactorIssuer = "Komari Monitor"
+	TwoFactorIssuer = "komari-next"
 )
 
 func Generate2Fa() (string, image.Image, error) {
 	otp, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      TwoFactorIssuer,
-		AccountName: "komari",
+		AccountName: "komari-next",
 	})
 	if err != nil {
 		return "", nil, err

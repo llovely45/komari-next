@@ -18,9 +18,9 @@ func GetEnv(key, defaultValue string) string {
 }
 
 var RootCmd = &cobra.Command{
-	Use:   "Komari",
-	Short: "Komari is a simple server monitoring tool",
-	Long: `Komari is a simple server monitoring tool.
+	Use:   "komari-next",
+	Short: "komari-next is a simple server monitoring tool",
+	Long: `komari-next is a simple server monitoring tool.
 Made by Akizon77 with love.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.SetArgs([]string{"server"})

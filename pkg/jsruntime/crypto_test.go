@@ -181,13 +181,13 @@ func TestCryptoCiphers(t *testing.T) {
 			const iv = Buffer.alloc(16, 2);
 			// AES-256-CBC with padding, multi-block input.
 			const cbc = crypto.createCipheriv("aes-256-cbc", key, iv);
-			const cbcParts = [cbc.update("komari is a monitoring platform with a lot of data")];
+			const cbcParts = [cbc.update("komari-next is a monitoring platform with a lot of data")];
 			cbcParts.push(cbc.final());
 			const cbcEncrypted = joinBuffers(cbcParts);
 			const decbc = crypto.createDecipheriv("aes-256-cbc", key, iv);
 			const decbcParts = [decbc.update(cbcEncrypted)];
 			decbcParts.push(decbc.final());
-			if (joinBuffers(decbcParts).toString() !== "komari is a monitoring platform with a lot of data") return "cbc";
+			if (joinBuffers(decbcParts).toString() !== "komari-next is a monitoring platform with a lot of data") return "cbc";
 			// CBC with no padding.
 			const cbcRaw = Buffer.alloc(32, 7);
 			const cbcNopad = crypto.createCipheriv("aes-256-cbc", key, iv);

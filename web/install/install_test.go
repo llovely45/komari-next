@@ -50,7 +50,7 @@ func performJSON(r http.Handler, method, path string, body any) *httptest.Respon
 func TestInstallRejectsInvalidInputWithoutCreatingAccount(t *testing.T) {
 	r, db, _ := setupInstallRouter(t)
 	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
-		Username: "admin", Password: "short", Sitename: "Komari",
+		Username: "admin", Password: "short", Sitename: "komari-next",
 	})
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("invalid install status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
@@ -64,7 +64,7 @@ func TestInstallRejectsInvalidInputWithoutCreatingAccount(t *testing.T) {
 func TestInstallRejectsWeakPasswordWithoutCreatingAccount(t *testing.T) {
 	r, db, _ := setupInstallRouter(t)
 	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
-		Username: "admin", Password: "lowercaseonly1", Sitename: "Komari",
+		Username: "admin", Password: "lowercaseonly1", Sitename: "komari-next",
 	})
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("weak password status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
@@ -80,7 +80,7 @@ func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
 		Username:    "owner",
 		Password:    "Correct-horse-battery-staple1",
-		Sitename:    "My Komari",
+		Sitename:    "My komari-next",
 		Description: "Private monitoring",
 	})
 	if response.Code != http.StatusOK {
@@ -91,7 +91,7 @@ func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 		t.Fatalf("find installed admin: %v", err)
 	}
 	want := map[string]any{
-		appconfig.SitenameKey:    "My Komari",
+		appconfig.SitenameKey:    "My komari-next",
 		appconfig.DescriptionKey: "Private monitoring",
 	}
 	got, err := appconfig.GetAll()
@@ -117,7 +117,7 @@ func TestInstallRejectsUnknownDSN(t *testing.T) {
 	response := performJSON(r, http.MethodPost, APIPath+"/complete", map[string]any{
 		"username":   "admin",
 		"password":   "Strong-password1",
-		"sitename":   "Komari",
+		"sitename":   "komari-next",
 		"metric_dsn": "not-a-recognized-dsn",
 	})
 	if response.Code != http.StatusBadRequest {

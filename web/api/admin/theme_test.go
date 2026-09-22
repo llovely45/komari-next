@@ -65,8 +65,8 @@ func TestValidateThemeManifestAcceptsLocalizedMetadata(t *testing.T) {
 			"en":    "A test theme covering every managed configuration field type.",
 		},
 		Author: map[string]any{
-			"zh-CN": "Komari 团队",
-			"en":    "Komari",
+			"zh-CN": "komari-next 团队",
+			"en":    "komari-next",
 		},
 	}
 

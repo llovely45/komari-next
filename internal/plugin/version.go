@@ -28,7 +28,7 @@ func CheckKomariVersion(constraint string) error {
 	}
 	want, err := parseSemver(rest)
 	if err != nil {
-		return fmt.Errorf("invalid komari version constraint %q: %w", constraint, err)
+		return fmt.Errorf("invalid komari-next version constraint %q: %w", constraint, err)
 	}
 	have, err := parseSemver(utils.CurrentVersion)
 	if err != nil {
@@ -36,7 +36,7 @@ func CheckKomariVersion(constraint string) error {
 		return nil
 	}
 	if !satisfies(compareSemver(have, want), op) {
-		return fmt.Errorf("plugin requires komari %s, running %s", constraint, utils.CurrentVersion)
+		return fmt.Errorf("plugin requires komari-next %s, running %s", constraint, utils.CurrentVersion)
 	}
 	return nil
 }

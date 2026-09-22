@@ -5,7 +5,7 @@
 
 ## 1. 设计范围
 
-本设计覆盖 Komari 服务端的模块生命周期、主数据库、指标数据库、Redis 缓存和第三方插件进程。前端主题和现有 JavaScript 插件保持兼容，不在本阶段替换为新的前端框架。
+本设计覆盖 komari-next 服务端的模块生命周期、主数据库、指标数据库、Redis 缓存和第三方插件进程。前端主题和现有 JavaScript 插件保持兼容，不在本阶段替换为新的前端框架。
 
 ## 2. 模块 API
 
@@ -135,7 +135,7 @@ type Cache interface {
 ### 5.1 进程模型
 
 ~~~text
-Komari
+komari-next
   ├─ plugin-host: plugin-a
   └─ plugin-host: plugin-b
 ~~~

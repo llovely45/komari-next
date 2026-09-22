@@ -1,16 +1,16 @@
-# Komari
+# komari-next
 
 ![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/komari-monitor/komari)
 
-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+![komari-next](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
 
 [English](./README.md) | [简体中文](./README_zh-cn.md)
 
-Komari 是一款轻量级的自托管服务器监控工具，旨在提供简单、高效的服务器性能监控解决方案。它支持通过 Web 界面查看服务器状态，并通过轻量级 Agent 收集数据。
+komari-next 是一款轻量级的自托管服务器监控工具，旨在提供简单、高效的服务器性能监控解决方案。它支持通过 Web 界面查看服务器状态，并通过轻量级 Agent 收集数据。
 
 > [!WARNING]
-> Komari 是一款自托管的监控/控制程序，仅应部署在你拥有或已获得授权管理的系统上。在未获授权的情况下部署、访问、持久化、执行命令及从事其他滥用行为，用户需要自行承担部署和使用 Komari 的责任。开发者不对未经授权或滥用行为及其后果承担责任。
+> komari-next 是一款自托管的监控/控制程序，仅应部署在你拥有或已获得授权管理的系统上。在未获授权的情况下部署、访问、持久化、执行命令及从事其他滥用行为，用户需要自行承担部署和使用 komari-next 的责任。开发者不对未经授权或滥用行为及其后果承担责任。
 
 [官方文档](https://www.komari.wiki/) | [仓库技术文档](./docs/README.md) | [API 文档](./docs/api/README.md) | [Telegram 群](https://t.me/komari_monitor)
 
@@ -31,6 +31,22 @@ Komari 是一款轻量级的自托管服务器监控工具，旨在提供简单�
 
 Docker、二进制文件、源码构建和更新说明，请参阅 [安装指南](https://www.komari.wiki/install/quick-start).
 
+### Docker 一键安装
+
+<p>
+  <a href="https://raw.githubusercontent.com/llovely45/komari-next/build/install-docker.sh">
+    <img src="https://img.shields.io/badge/Docker-%E4%B8%80%E9%94%AE%E5%AE%89%E8%A3%85-2496ED?logo=docker&logoColor=white" alt="Docker 一键安装">
+  </a>
+</p>
+
+服务器已安装 Docker 和 Docker Compose 时，也可以直接执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/llovely45/komari-next/build/install-docker.sh | sudo bash
+```
+
+脚本会启动 komari-next 和 PostgreSQL 两个容器；Redis 已内置在 komari-next 容器中，不会暴露 `6379` 端口。默认安装当前稳定镜像 `1.0.3`，数据保存在 `/opt/komari-next`。
+
 ## 截图
 
 | 页面         | 截图                                                                                                                                                         |
@@ -44,7 +60,7 @@ Docker、二进制文件、源码构建和更新说明，请参阅 [安装指南
 
 ## 赞助商
 
-有意赞助 Komari？请通过 [电子邮箱](mailto:komari@akz.moe) 或 [Telegram](https://t.me/mamomoe) 联系开发者。
+有意赞助 komari-next？请通过 [电子邮箱](mailto:komari@akz.moe) 或 [Telegram](https://t.me/mamomoe) 联系开发者。
 
 | 赞助商                                                                                                                                                                                           | 描述                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -54,13 +70,13 @@ Docker、二进制文件、源码构建和更新说明，请参阅 [安装指南
 
 ## 贡献者
 
-感谢所有为 Komari 贡献代码、主题、插件、文档、翻译、问题报告或反馈的朋友。
+感谢所有为 komari-next 贡献代码、主题、插件、文档、翻译、问题报告或反馈的朋友。
 
-<a href="https://github.com/komari-monitor/komari/graphs/contributors"><img src="https://contributors-img.web.app/image?repo=komari-monitor/komari" alt="Komari 贡献者" width="600"></a>
+<a href="https://github.com/komari-monitor/komari/graphs/contributors"><img src="https://contributors-img.web.app/image?repo=komari-monitor/komari" alt="komari-next 贡献者" width="600"></a>
 
 ## 支持项目
 
-如果 Komari 对你有所帮助，欢迎请作者喝一杯奶茶。感谢你的支持！
+如果 komari-next 对你有所帮助，欢迎请作者喝一杯奶茶。感谢你的支持！
 
 | 微信赞赏码                                                                                       | TRON Network                                                                |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |

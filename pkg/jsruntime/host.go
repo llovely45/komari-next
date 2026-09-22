@@ -15,7 +15,7 @@ import (
 
 // Host is the host-facing service boundary of a Runtime. It deliberately
 // stays independent of any particular host application so the jsruntime
-// package does not depend on gin, RPC registries, or other Komari surfaces.
+// package does not depend on gin, RPC registries, or other komari-next surfaces.
 type Host struct {
 	runtime *bridge.Runtime
 }

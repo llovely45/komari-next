@@ -1,18 +1,18 @@
-# Komari 优化方向
+# komari-next 优化方向
 
 > [!NOTE]
 > 本文是目标架构和后续路线，不替代[当前技术架构](./technical-overview.md)、[配置参考](./configuration.md)或 API 文档。当前运行时已经使用 PostgreSQL 主库、共享 PostgreSQL 指标表和容器内固定 Redis；本页保留未来模块化、隔离和可观测性工作的设计目标。
 
 ## 目标
 
-本分支以 Komari 1.4.3 为基线，目标不是把项目改写成另一种语言，而是把它演进成：
+本分支以 komari-next 1.4.3 为基线，目标不是把项目改写成另一种语言，而是把它演进成：
 
 1. Go 负责核心业务、模块和高性能路径。
 2. PostgreSQL 作为生产环境的主数据库，指标库也统一优先使用 PostgreSQL。
 3. Redis 作为可失效的缓存、短期状态和热点读优化层，不作为唯一数据源。
 4. 第三方插件以独立 Go 子进程运行，通过版本化协议与主进程通信。
 5. 现有 JavaScript/Goja 插件保留兼容，不让旧插件阻塞新架构。
-6. Rust 只作为独立外部服务，不嵌入 Komari 主进程。
+6. Rust 只作为独立外部服务，不嵌入 komari-next 主进程。
 
 ## 当前基线与问题
 
@@ -61,7 +61,7 @@ Existing JavaScript Plugin
 
 ### Go 内置模块
 
-内置模块编译到 Komari 主程序，适合认证、节点、指标、任务和数据库迁移等核心能力。首个实现切片的 Host 合约最小化为 Logger 加版本化的 typed extension point；这只是首个切片，Repository、Metrics、Cache、EventBus、Scheduler 等未来 capability ports 将分阶段加入，不是 Task 2 的 Host 字段。模块之间不能互相获取全局数据库对象。
+内置模块编译到 komari-next 主程序，适合认证、节点、指标、任务和数据库迁移等核心能力。首个实现切片的 Host 合约最小化为 Logger 加版本化的 typed extension point；这只是首个切片，Repository、Metrics、Cache、EventBus、Scheduler 等未来 capability ports 将分阶段加入，不是 Task 2 的 Host 字段。模块之间不能互相获取全局数据库对象。
 
 模块生命周期：
 
@@ -154,7 +154,7 @@ Redis 是加速层，不是数据源：
 - 旧 JavaScript 插件可以继续安装、启停和卸载。
 - PostgreSQL 连接失败时不会泄露 DSN 密码。
 - Redis 关闭时核心读写仍能回源 PostgreSQL。
-- Go 插件崩溃不会导致 Komari 主进程退出。
+- Go 插件崩溃不会导致 komari-next 主进程退出。
 - 模块启动顺序遵守依赖，停止顺序反向执行。
 - 指标写入和查询的吞吐、延迟、内存指标有可重复基准。
 - SQLite 数据可以通过显式迁移进入 PostgreSQL，迁移过程可重试、可回滚。

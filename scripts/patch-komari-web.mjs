@@ -384,9 +384,51 @@ async function patchInstallTranslations() {
   }
 }
 
+async function patchFrontendBranding() {
+  const relativePaths = [
+    "komari-theme.json",
+    "public/manifest.json",
+    "src/components/GuideHeader.tsx",
+    "src/components/NavBar.tsx",
+    "src/components/PWAInstallPrompt.tsx",
+    "src/components/Footer.tsx",
+    "src/components/admin/AdminPanelBar.tsx",
+    "src/lib/RPC2_README.md",
+    "src/pages/admin/about.tsx",
+    "src/pages/install.tsx",
+    "src/utils/eula.ts",
+    "src/utils/field.ts",
+  ];
+
+  const localeDir = join(frontendRoot, "src/i18n/locales");
+  const localeFiles = (await readdir(localeDir))
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => join("src/i18n/locales", name));
+
+  for (const relativePath of [...relativePaths, ...localeFiles]) {
+    const path = join(frontendRoot, relativePath);
+    const source = await readFile(path, "utf8");
+    const updated = source.replaceAll(/\bKomari\b/g, "komari-next");
+    if (updated !== source) {
+      await writeFile(path, updated);
+    }
+  }
+
+  const marketPath = join(frontendRoot, "src/pages/admin/market/plugins.tsx");
+  let marketSource = await readFile(marketPath, "utf8");
+  marketSource = replaceOnce(
+    marketSource,
+    '"Komari update required"',
+    '"komari-next update required"',
+    "plugin market branding",
+  );
+  await writeFile(marketPath, marketSource);
+}
+
 await patchInstallPage();
 await patchMetricsSettingsPage();
 await patchDatabaseMigrationPage();
 await patchRemovedRecoveryPage();
 await patchFrontendBuildCompatibility();
 await patchInstallTranslations();
+await patchFrontendBranding();

@@ -7,7 +7,7 @@
 
 ## 系统边界
 
-Komari 是一个 Go 单体服务：HTTP、WebSocket、JSON-RPC、后台调度、控制面数据库、监控指标存储和 JavaScript 插件运行时都在同一个进程内。Docker 镜像还会在同一容器内启动一个仅绑定回环地址的 Redis 进程。Agent 通过客户端 Token 连接或上报，Web UI 通过 Session Cookie、API Key 或匿名身份访问。
+komari-next 是一个 Go 单体服务：HTTP、WebSocket、JSON-RPC、后台调度、控制面数据库、监控指标存储和 JavaScript 插件运行时都在同一个进程内。Docker 镜像还会在同一容器内启动一个仅绑定回环地址的 Redis 进程。Agent 通过客户端 Token 连接或上报，Web UI 通过 Session Cookie、API Key 或匿名身份访问。
 
 ~~~mermaid
 flowchart TD

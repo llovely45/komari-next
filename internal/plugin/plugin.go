@@ -1,4 +1,4 @@
-// Package plugin manages Komari plugins: ZIP packages with a
+// Package plugin manages komari-next plugins: ZIP packages with a
 // komari-plugin.json manifest, mirroring the theme package format. A plugin
 // runs in its own jsruntime instance confined to its data/plugin/<short>
 // directory, plus its long-term data directory data/plugin-data/<short>

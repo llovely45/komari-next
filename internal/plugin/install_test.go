@@ -73,7 +73,7 @@ func TestInstallZipRejectsKomariVersionMismatch(t *testing.T) {
 		"script.js":          `function load() {}`,
 	})
 	if _, err := InstallZip(zipPath); err == nil {
-		t.Fatal("expected komari version mismatch error")
+		t.Fatal("expected komari-next version mismatch error")
 	}
 }
 

@@ -1,4 +1,4 @@
-# Komari 文档
+# komari-next 文档
 
 本目录记录当前仓库实现的部署、架构和接口约定。接口说明以当前分支源码为准，重点核对了 `web/router/router.go`、`web/rpc/jsonrpc/`、`protocol/v2/` 和 `web/api/`。
 

@@ -109,7 +109,7 @@ func TestRunRemovesCompatibilityConfig(t *testing.T) {
 			t.Fatalf("seed removed config %q: %v", key, err)
 		}
 	}
-	if err := db.Create(&appconfig.ConfigItem{Key: "sitename", Value: `"Komari"`}).Error; err != nil {
+	if err := db.Create(&appconfig.ConfigItem{Key: "sitename", Value: `"komari-next"`}).Error; err != nil {
 		t.Fatalf("seed retained config: %v", err)
 	}
 
@@ -215,7 +215,7 @@ func TestRunMigratesLegacyConfigTableToConfigItems(t *testing.T) {
 		t.Fatalf("migrate legacy config table: %v", err)
 	}
 	legacy := legacyModelConfig{
-		Sitename:                   "Old Komari",
+		Sitename:                   "Old komari-next",
 		Description:                "legacy description",
 		Theme:                      "classic",
 		GeoIpEnabled:               true,
@@ -241,7 +241,7 @@ func TestRunMigratesLegacyConfigTableToConfigItems(t *testing.T) {
 	if err := db.First(&sitename, "key = ?", appconfig.SitenameKey).Error; err != nil {
 		t.Fatalf("find migrated sitename: %v", err)
 	}
-	if sitename.Value != `"Old Komari"` {
+	if sitename.Value != `"Old komari-next"` {
 		t.Fatalf("unexpected sitename value: %s", sitename.Value)
 	}
 

@@ -84,7 +84,7 @@ func walkDirToZip(zipWriter *zip.Writer, contentDir string) error {
 // writeBackupMarkup 追加备份标记文件到 zip。
 func writeBackupMarkup(zipWriter *zip.Writer) error {
 	now := time.Now().UTC()
-	markupContent := "此文件为 Komari 备份标记文件，请勿删除。\nThis is a Komari backup markup file, please do not delete.\n\n备份时间 / Backup Time: " + now.Format(time.RFC3339Nano)
+	markupContent := "此文件为 komari-next 备份标记文件，请勿删除。\nThis is a komari-next backup markup file, please do not delete.\n\n备份时间 / Backup Time: " + now.Format(time.RFC3339Nano)
 	markupWriter, err := zipWriter.CreateHeader(&zip.FileHeader{
 		Name:     "komari-backup-markup",
 		Method:   zip.Deflate,

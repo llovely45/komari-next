@@ -1,6 +1,6 @@
 # 认证与权限
 
-Komari 当前支持匿名访客、管理员 Session、管理员 API Key 和 Agent Token 四种身份。身份识别顺序是 API Key、Session Cookie、Agent Token、匿名；同一个请求同时携带多种凭据时，优先级更高的身份生效。
+komari-next 当前支持匿名访客、管理员 Session、管理员 API Key 和 Agent Token 四种身份。身份识别顺序是 API Key、Session Cookie、Agent Token、匿名；同一个请求同时携带多种凭据时，优先级更高的身份生效。
 
 ## 管理员 Session
 
