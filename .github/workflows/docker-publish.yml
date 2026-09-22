@@ -7,17 +7,77 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Docker image and embedded application version, for example 1.0.1.
+        description: Optional Docker image and embedded application version. Leave blank to increment the latest stable tag.
         required: false
-        default: "1.0.1"
+        default: ""
         type: string
+
+concurrency:
+  group: docker-publish-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  IMAGE_VERSION: ${{ inputs.version || '1.0.1' }}
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout version tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and reserve release version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          version="$REQUESTED_VERSION"
+          if [[ -z "$version" ]]; then
+            latest="$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+            # 1.0.1 is the version already used by the original build workflow.
+            # The first automatic release from this workflow is therefore 1.0.2.
+            if [[ -z "$latest" ]]; then
+              latest="1.0.1"
+            fi
+            IFS=. read -r major minor patch <<< "$latest"
+            version="${major}.${minor}.$((patch + 1))"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $version"
+            echo "Use a semantic version such as 1.0.2 or 1.0.2-rc.1."
+            exit 1
+          fi
+
+          if git show-ref --tags --verify --quiet "refs/tags/$version"; then
+            tagged_sha="$(git rev-list -n 1 "refs/tags/$version")"
+            if [[ "$tagged_sha" != "$GITHUB_SHA" ]]; then
+              echo "Version tag $version already points to $tagged_sha, not $GITHUB_SHA"
+              exit 1
+            fi
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$version" "$GITHUB_SHA" -m "Release $version"
+            git push origin "refs/tags/$version"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved release version: $version"
+
   build-frontend:
     runs-on: ubuntu-latest
 
@@ -31,8 +91,10 @@ jobs:
           artifact-name: komari-frontend
 
   build-docker-binaries:
-    needs: build-frontend
+    needs: [resolve-version, build-frontend]
     runs-on: ubuntu-latest
+    env:
+      IMAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
     steps:
       - name: Checkout code
@@ -81,8 +143,10 @@ jobs:
           path: komari-linux-*
 
   build-and-push-multi-arch:
-    needs: build-docker-binaries
+    needs: [resolve-version, build-docker-binaries]
     runs-on: ubuntu-latest
+    env:
+      IMAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
     permissions:
       contents: read
       packages: write
