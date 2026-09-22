@@ -363,6 +363,19 @@ async function patchAgentInstallCommands() {
     "src/components/admin/NodeTable/NodeFunction.tsx",
   );
   let nodeFunction = await readFile(nodeFunctionPath, "utf8");
+  const agentShellInstallUrl = "https://komari-agent-next.pages.dev/install.sh";
+  const legacyAgentShellInstallUrl =
+    "https://raw.githubusercontent.com/komari-monitor/komari-agent/refs/heads/main/install.sh";
+  const nodeShellInstallUrlCount = nodeFunction.split(legacyAgentShellInstallUrl).length - 1;
+  if (nodeShellInstallUrlCount !== 2) {
+    throw new Error(
+      `frontend shell install URL count changed: expected 2, found ${nodeShellInstallUrlCount}`,
+    );
+  }
+  nodeFunction = nodeFunction.replaceAll(
+    legacyAgentShellInstallUrl,
+    agentShellInstallUrl,
+  );
   const directTokenArgs =
     'const args: string[] = ["-e", host, "-t", token];';
   const legacyDirectTokenArgs =
@@ -382,7 +395,7 @@ async function patchAgentInstallCommands() {
   await writeFile(nodeFunctionPath, nodeFunction);
 
   const adminPath = join(frontendRoot, "src/pages/admin/index.tsx");
-  const adminSource = await readFile(adminPath, "utf8");
+  let adminSource = await readFile(adminPath, "utf8");
   const autoDiscoveryArgs =
     'const args: string[] = ["-e", host, "--auto-discovery", adKey];';
   // `-t` is the client token flag. Auto discovery must keep its dedicated
@@ -392,6 +405,40 @@ async function patchAgentInstallCommands() {
       "frontend auto-discovery command does not use the dedicated auto-discovery key",
     );
   }
+
+  const agentBaseUrl = "https://komari-agent-next.pages.dev";
+  const legacyAgentBaseUrl =
+    "https://raw.githubusercontent.com/komari-monitor/komari-agent/refs/heads/main";
+  const legacyScriptUrlOneLine =
+    "    let scriptUrl = `" + legacyAgentBaseUrl + "/${scriptFile}`;";
+  const legacyScriptUrlWrapped = [
+    "    let scriptUrl =",
+    "      `" + legacyAgentBaseUrl + "/${scriptFile}`;",
+  ].join("\n");
+  const scriptUrlReplacement = [
+    "    const scriptBaseUrl =",
+    '      scriptFile === "install.sh"',
+    `        ? "${agentBaseUrl}"`,
+    `        : "${legacyAgentBaseUrl}";`,
+    "    let scriptUrl = `${scriptBaseUrl}/${scriptFile}`;",
+  ].join("\n");
+  adminSource = replaceOnce(
+    adminSource,
+    legacyScriptUrlOneLine,
+    scriptUrlReplacement,
+    "frontend shell script URL",
+  );
+  adminSource = replaceOnce(
+    adminSource,
+    legacyScriptUrlWrapped,
+    scriptUrlReplacement,
+    "frontend wrapped shell script URL",
+  );
+  const legacyDynamicScriptUrl = legacyAgentBaseUrl + "/${scriptFile}";
+  if (adminSource.includes(legacyDynamicScriptUrl)) {
+    throw new Error("frontend still generates the legacy dynamic shell script URL");
+  }
+  await writeFile(adminPath, adminSource);
 }
 
 async function patchInstallTranslations() {
