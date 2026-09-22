@@ -357,6 +357,43 @@ async function patchFrontendBuildCompatibility() {
   await writeFile(path, source);
 }
 
+async function patchAgentInstallCommands() {
+  const nodeFunctionPath = join(
+    frontendRoot,
+    "src/components/admin/NodeTable/NodeFunction.tsx",
+  );
+  let nodeFunction = await readFile(nodeFunctionPath, "utf8");
+  const directTokenArgs =
+    'const args: string[] = ["-e", host, "-t", token];';
+  const legacyDirectTokenArgs =
+    'const args: string[] = ["-e", host, "--token", token];';
+
+  if (nodeFunction.includes(legacyDirectTokenArgs)) {
+    nodeFunction = replaceOnce(
+      nodeFunction,
+      legacyDirectTokenArgs,
+      directTokenArgs,
+      "agent install client token flag",
+    );
+  }
+  if (!nodeFunction.includes(directTokenArgs)) {
+    throw new Error("frontend install command does not use the -t client token flag");
+  }
+  await writeFile(nodeFunctionPath, nodeFunction);
+
+  const adminPath = join(frontendRoot, "src/pages/admin/index.tsx");
+  const adminSource = await readFile(adminPath, "utf8");
+  const autoDiscoveryArgs =
+    'const args: string[] = ["-e", host, "--auto-discovery", adKey];';
+  // `-t` is the client token flag. Auto discovery must keep its dedicated
+  // key so the Agent can register first and persist the issued client token.
+  if (!adminSource.includes(autoDiscoveryArgs)) {
+    throw new Error(
+      "frontend auto-discovery command does not use the dedicated auto-discovery key",
+    );
+  }
+}
+
 async function patchInstallTranslations() {
   const localeDir = join(frontendRoot, "src/i18n/locales");
   const files = (await readdir(localeDir)).filter((name) => name.endsWith(".json"));
@@ -430,5 +467,6 @@ await patchMetricsSettingsPage();
 await patchDatabaseMigrationPage();
 await patchRemovedRecoveryPage();
 await patchFrontendBuildCompatibility();
+await patchAgentInstallCommands();
 await patchInstallTranslations();
 await patchFrontendBranding();
