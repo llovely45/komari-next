@@ -3,9 +3,11 @@ package jsonrpc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/database/clients"
+	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/database/records"
 	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/pkg/rpc"
@@ -58,6 +60,14 @@ func init() {
 		Name:    "admin:listDDNSClients",
 		Summary: "List client addresses for the DDNS plugin",
 		Returns: "DDNSClient[]",
+	})
+	RegisterWithGroupAndMeta("restoreClients", rpc.RoleAdmin, adminRestoreClients, &rpc.MethodMeta{
+		Name:    "admin:restoreClients",
+		Summary: "Restore clients from a node backup, matching existing nodes by IPv4",
+		Params: []rpc.ParamMeta{
+			{Name: "clients", Type: "Client[]", Required: true, Description: "Client records exported by admin:listClients"},
+		},
+		Returns: "{ results: ClientRestoreResult[] }",
 	})
 	RegisterWithGroupAndMeta("getClientToken", rpc.RoleAdmin, adminGetClientToken, &rpc.MethodMeta{
 		Name:    "admin:getClientToken",
@@ -165,6 +175,36 @@ func adminListClients(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
 	return cls, nil
+}
+
+func adminRestoreClients(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		Clients []models.Client `json:"clients"`
+	}
+	if err := req.BindParams(&params); err != nil || params.Clients == nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid or missing clients array", nil)
+	}
+	results, err := clients.RestoreClients(params.Clients)
+	if err != nil {
+		if errors.Is(err, clients.ErrInvalidClientBackup) {
+			return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+		}
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to restore clients", nil)
+	}
+	added, updated, skipped := 0, 0, 0
+	for _, result := range results {
+		switch result.Action {
+		case "added":
+			added++
+		case "updated":
+			updated++
+		default:
+			skipped++
+		}
+	}
+	actor, ip := auditActor(ctx)
+	auditlog.Log(ip, actor, fmt.Sprintf("restore clients backup: added=%d updated=%d skipped=%d", added, updated, skipped), "warn")
+	return map[string]any{"results": results}, nil
 }
 
 func adminListDDNSClients(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

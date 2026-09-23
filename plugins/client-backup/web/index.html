@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>节点备份恢复</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="hero-mark" aria-hidden="true">↻</div>
+      <div>
+        <p class="eyebrow">KOMARI PLUGIN</p>
+        <h1>节点备份恢复</h1>
+        <p class="subtitle">备份服务器列表中的节点配置，恢复时按 IPv4 找回已有节点。</p>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" role="status" hidden></div>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="number">01</div>
+        <h2>导出节点备份</h2>
+        <p>导出完整节点记录，包含 UUID、RPC Token、名称、账单、流量限制、标签和其他节点字段。</p>
+        <button id="export" class="button primary" type="button">下载 JSON 备份</button>
+        <p class="fine">备份文件包含可用于 Agent 认证的 RPC Token，请妥善保管。</p>
+      </article>
+
+      <article class="panel">
+        <div class="number">02</div>
+        <h2>恢复节点备份</h2>
+        <p>选择本插件导出的 JSON 文件。恢复前会读取当前服务器列表并显示 IPv4 匹配预览。</p>
+        <label class="file-picker">
+          <span>选择备份文件</span>
+          <input id="backup-file" type="file" accept="application/json,.json">
+        </label>
+        <div id="file-name" class="file-name">尚未选择文件</div>
+        <div id="preview" class="preview" hidden></div>
+        <button id="restore" class="button primary" type="button" disabled>恢复所选节点</button>
+      </article>
+    </section>
+
+    <section class="panel rules">
+      <h2>匹配与覆盖规则</h2>
+      <ul>
+        <li>IPv4 与现有节点相同时，保留现有 UUID、RPC Token、IP 和 Agent 上报的硬件信息，只覆盖名称、账单、流量限制、标签、备注、分组、权重和可见性等管理字段。</li>
+        <li>找不到相同 IPv4 时，按备份中的 UUID 和 RPC Token 新增节点，使使用原 Token 的 Agent 可以继续连接。</li>
+        <li>若 IPv4 有多个候选，或新增时 UUID / RPC Token 已被占用，该条会跳过并显示原因。</li>
+        <li>节点备份不包含历史监控曲线数据。</li>
+      </ul>
+    </section>
+
+    <section id="results-panel" class="panel results-panel" hidden>
+      <h2>恢复结果</h2>
+      <div id="result-summary" class="result-summary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>结果</th><th>节点</th><th>IPv4</th><th>说明</th></tr></thead>
+          <tbody id="result-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>Komari Next · 节点备份恢复 1.0.0</footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": {
+    "zh_CN": "节点备份恢复",
+    "en": "Node Backup & Restore"
+  },
+  "short": "client-backup",
+  "description": {
+    "zh_CN": "导出服务器列表中的节点数据，并按 IPv4 安全恢复。",
+    "en": "Export node data and restore it safely by matching IPv4 addresses."
+  },
+  "author": "Komari Next",
+  "version": "1.0.0",
+  "komari": ">=1.0.20",
+  "entry": "script.js",
+  "permissions": {
+    "timeout": 10
+  },
+  "pages": [
+    {
+      "file": "web/index.html",
+      "title": {
+        "zh_CN": "节点备份恢复",
+        "en": "Node Backup & Restore"
+      },
+      "icon": "icon.svg",
+      "type": "iframe",
+      "visibility": "admin"
+    }
+  ]
+}

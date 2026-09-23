@@ -172,6 +172,7 @@ curl -fsS \
 | `admin:removeClient` | `{ "uuid": string }` | `null` | 删除客户端 |
 | `admin:getClient` | `{ "uuid": string }` | `Client` | 查询单个客户端 |
 | `admin:listClients` | 无 | `Client[]` | 返回完整客户端基本信息，使用 `WithRaw` 传统路由也直接返回数组 |
+| `admin:restoreClients` | `{ "clients": Client[] }` | `{ "results": ClientRestoreResult[] }` | 从节点备份恢复：按 IPv4 更新管理字段；无匹配时按备份 UUID / Token 新增；冲突节点会跳过 |
 | `admin:listDDNSClients` | 无 | `DDNSClient[]` | 仅返回 UUID、名称和 IP，供 Go/WASI DDNS 插件列出来源节点 |
 | `admin:getClientToken` | `{ "uuid": string }` | `{ token }` | 敏感凭据读取 |
 | `admin:clearRecords` | 无 | `null` | 删除负载记录，不删除 Ping 记录 |
