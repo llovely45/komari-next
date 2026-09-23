@@ -265,6 +265,9 @@ curl -fsS \
 | `admin:deletePlugin` | `{ "short": string }` | `null` | 删除插件及其持久化状态 |
 | `admin:getPluginConfiguration` | `{ "short": string }` | `{ configuration: object, data: object }` | 返回 manifest 声明和已保存值 |
 | `admin:setPluginConfiguration` | `{ "short": string, "data": object }` | `null` | 保存后立即尝试重载插件 |
+| `admin:listNotificationChannels` | 无 | `NotificationChannel[]` | 列出当前注册的通知渠道 |
+| `admin:getNotificationChannelConfiguration` | `{ "id": string }` | `{ configuration: object, data: object }` | 返回渠道配置表单与已保存值 |
+| `admin:setNotificationChannelConfiguration` | `{ "id": string, "data": object }` | `null` | 保存渠道配置；当前启用的渠道会立即重载 |
 | `admin:getMessageSenderProvider` | `{ "provider"?: string }` | 提供商列表或配置对象 | 指定 provider 时返回已保存配置 |
 | `admin:setMessageSenderProvider` | `MessageSenderProvider` | `{ message: string }` | `name` 必须是已注册提供商 |
 | `admin:getOidcProvider` | `{ "provider"?: string }` | OIDC 提供商列表或配置对象 | 指定 provider 时返回已保存配置 |

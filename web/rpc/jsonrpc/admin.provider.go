@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/komari-monitor/komari/database"
 	"github.com/komari-monitor/komari/database/models"
@@ -19,8 +20,62 @@ import (
 func init() {
 	reg("getMessageSenderProvider", adminGetMessageSender, "Get message sender provider config or templates")
 	reg("setMessageSenderProvider", adminSetMessageSender, "Set message sender provider config")
+	reg("listNotificationChannels", adminListNotificationChannels, "List notification channels")
+	reg("getNotificationChannelConfiguration", adminGetNotificationChannelConfiguration, "Get notification channel configuration")
+	reg("setNotificationChannelConfiguration", adminSetNotificationChannelConfiguration, "Set notification channel configuration")
 	reg("getOidcProvider", adminGetOidc, "Get OIDC provider config or templates")
 	reg("setOidcProvider", adminSetOidc, "Set OIDC provider config")
+}
+
+func adminListNotificationChannels(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	return messageSender.ListNotificationChannels(), nil
+}
+
+func adminGetNotificationChannelConfiguration(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := req.BindParams(&params); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid request data: "+err.Error(), nil)
+	}
+	configuration, values, exists, err := messageSender.GetNotificationChannelConfiguration(params.ID)
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to load notification channel configuration: "+err.Error(), nil)
+	}
+	if !exists {
+		return nil, rpc.MakeError(rpc.NotFound, "Notification channel not found: "+params.ID, nil)
+	}
+	return map[string]any{"configuration": configuration, "data": values}, nil
+}
+
+func adminSetNotificationChannelConfiguration(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		ID   string         `json:"id"`
+		Data map[string]any `json:"data"`
+	}
+	if err := req.BindParams(&params); err != nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid request data: "+err.Error(), nil)
+	}
+	if params.Data == nil {
+		params.Data = map[string]any{}
+	}
+	if err := messageSender.SaveNotificationChannelConfiguration(params.ID, params.Data); err != nil {
+		if !messageSender.NotificationChannelRegistered(params.ID) {
+			return nil, rpc.MakeError(rpc.NotFound, "Notification channel not found: "+params.ID, nil)
+		}
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to save notification channel configuration: "+err.Error(), nil)
+	}
+	method, _ := config.GetAs[string](config.NotificationMethodKey, "none")
+	if method == params.ID {
+		addition, err := json.Marshal(params.Data)
+		if err != nil {
+			return nil, rpc.MakeError(rpc.InvalidParams, "Invalid notification channel configuration: "+err.Error(), nil)
+		}
+		if err := messageSender.LoadProvider(params.ID, string(addition)); err != nil {
+			return nil, rpc.MakeError(rpc.InternalError, "Failed to load notification channel configuration: "+err.Error(), nil)
+		}
+	}
+	return nil, nil
 }
 
 func adminGetMessageSender(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
