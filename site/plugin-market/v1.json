@@ -17,6 +17,23 @@
       "url": "https://github.com/llovely45/komari-next/tree/main/plugins/command-clipboard",
       "download": "https://komari-next.pages.dev/plugin-market/command-clipboard-1.0.5.zip",
       "sha256": "5aaa9e4a1293ea0a29e83b523ada69c10f17affb8bcc61d48154964fd833452b"
+    },
+    {
+      "name": {
+        "zh_CN": "动态 DNS",
+        "en": "Dynamic DNS"
+      },
+      "short": "cloudflare-ddns",
+      "description": {
+        "zh_CN": "从 Komari 节点读取 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS，并支持星期和时段调度。",
+        "en": "Update Cloudflare or Huawei Cloud International DNS from Komari nodes with weekly time-window scheduling."
+      },
+      "version": "2.1.0",
+      "author": "Komari Next",
+      "komari": ">=1.0.15",
+      "url": "https://github.com/llovely45/komari-next/tree/main/plugins/ddns",
+      "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.1.0.zip",
+      "sha256": "56fa6f02a27a6f805cd071537c0c9decea251fdee04e7b9f9f40f1a286bac224"
     }
   ]
 }
