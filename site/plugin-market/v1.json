@@ -25,15 +25,15 @@
       },
       "short": "cloudflare-ddns",
       "description": {
-        "zh_CN": "从 Komari 节点读取 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS，并支持星期和时段调度。",
-        "en": "Update Cloudflare or Huawei Cloud International DNS from Komari nodes with weekly time-window scheduling."
+        "zh_CN": "从 Komari 节点读取 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS；支持华为云解析线路和星期时段调度。",
+        "en": "Update Cloudflare or Huawei Cloud International DNS from Komari nodes, with Huawei DNS lines and weekly time-window scheduling."
       },
-      "version": "2.1.2",
+      "version": "2.2.0",
       "author": "Komari Next",
       "komari": ">=1.0.19",
       "url": "https://github.com/llovely45/komari-next/tree/main/plugins/ddns",
-      "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.1.2.zip",
-      "sha256": "d168c58c10c688c3f052c7155d983629204feff73f4c788309d7b2e7f78a1705"
+      "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.2.0.zip",
+      "sha256": "a3bd6014a8316c71b88fb8cedfec21a7579794834d43e194f3adde70c35dd726"
     }
   ]
 }
