@@ -33,7 +33,7 @@
       "komari": ">=1.0.20",
       "url": "https://github.com/llovely45/komari-next/tree/main/plugins/ddns",
       "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.3.1.zip",
-      "sha256": "802d805e350b8f40c69d4dcc3f1ee5f4e396c5e9b1e5a3964bc2c0484474d69d"
+      "sha256": "a3e5e213c14a3a61ae8af8971232c2ae4d7506888d7442099ef466bb45e46e87"
     },
     {
       "name": {
