@@ -13,7 +13,7 @@
   "komari": ">=1.0.20",
   "runtime": "go-wasi",
   "entry": "plugin.wasm",
-  "entrySha256": "2255d9eee36655165e0b5ea1458ff63b7a8f5fb1f5e9705d140b8b65e52029ab",
+  "entrySha256": "81351f3035ea342c944eeaac895aca811d284f5db67a5ad6de033af3aa9b166c",
   "rpcMethods": [
     "plugin:cloudflare-ddns:state",
     "plugin:cloudflare-ddns:clients",
