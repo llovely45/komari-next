@@ -37,8 +37,9 @@ type Cache interface {
 type FailureOperation string
 
 const (
-	CacheReadFailure   FailureOperation = "read"
-	CacheRefillFailure FailureOperation = "refill"
+	CacheReadFailure         FailureOperation = "read"
+	CacheRefillFailure       FailureOperation = "refill"
+	CacheInvalidationFailure FailureOperation = "invalidation"
 )
 
 // ErrorReport is the observable form of a cache backend failure. Err is kept
@@ -74,6 +75,12 @@ func (loggingErrorReporter) ReportCacheError(ctx context.Context, report ErrorRe
 		"operation", string(report.Operation),
 		"error_type", fmt.Sprintf("%T", report.Err),
 	)
+}
+
+// ReportCacheFailure logs a best-effort cache operation failure using the same
+// credential-safe fields as read-through failures.
+func ReportCacheFailure(ctx context.Context, operation FailureOperation, err error) {
+	loggingErrorReporter{}.ReportCacheError(ctx, ErrorReport{Operation: operation, Err: err})
 }
 
 // Noop is the safe development and Redis-disabled implementation.

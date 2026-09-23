@@ -28,6 +28,7 @@ func DeleteAllRecords(ctx context.Context) error {
 		}
 	}
 	clearReportTrafficStates()
+	InvalidateMetricQueryCache(ctx)
 
 	return nil
 }
@@ -43,6 +44,9 @@ func DeleteAllPingRecords(ctx context.Context) error {
 			return fmt.Errorf("failed to delete ping records: %w", err)
 		}
 	}
+	InvalidateMetricQueryCache(ctx)
+	InvalidatePingStatsCache(ctx)
+	InvalidatePingQueryCache(ctx)
 	return nil
 }
 
@@ -62,6 +66,9 @@ func DeletePingRecordsByTask(ctx context.Context, taskIDs []uint) error {
 			}
 		}
 	}
+	InvalidateMetricQueryCache(ctx)
+	InvalidatePingStatsCache(ctx)
+	InvalidatePingQueryCache(ctx)
 	return nil
 }
 
@@ -75,6 +82,8 @@ func DeleteEntity(ctx context.Context, entityID string) error {
 		return fmt.Errorf("failed to delete metric records for entity %s: %w", entityID, err)
 	}
 	deleteReportTrafficState(entityID)
+	InvalidateMetricQueryCache(ctx)
+	DeleteCacheKey(ctx, MetricPingStatsCacheKey(entityID))
 	return nil
 }
 
@@ -99,6 +108,8 @@ func DeleteMetricDataAsync(metricName string) {
 		}
 		if _, err := s.DeleteMetricDataIfDisabled(context.Background(), metricName); err != nil {
 			logger.Errorf("metricstore", "Failed to delete disabled metric %s: %v", metricName, err)
+			return
 		}
+		InvalidateMetricDefinitions(context.Background())
 	}()
 }

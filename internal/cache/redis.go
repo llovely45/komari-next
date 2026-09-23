@@ -34,6 +34,10 @@ type pingBackend interface {
 	Ping(context.Context) error
 }
 
+type prefixBackend interface {
+	DeletePrefix(context.Context, string) error
+}
+
 // Redis is a Cache backed by a Redis client. The raw go-redis client is kept
 // inside this adapter and is never exposed to modules.
 type Redis struct {
@@ -168,6 +172,20 @@ func (c *Redis) Delete(ctx context.Context, rawKeys ...string) error {
 	return c.backend.Delete(ctx, keys...)
 }
 
+// DeletePrefix removes all keys below a namespaced raw-key prefix using Redis
+// SCAN, avoiding a blocking KEYS command.
+func (c *Redis) DeletePrefix(ctx context.Context, rawPrefix string) error {
+	rawPrefix = strings.TrimSpace(rawPrefix)
+	if rawPrefix == "" {
+		return errors.New("cache prefix is empty")
+	}
+	store, ok := c.backend.(prefixBackend)
+	if !ok {
+		return errors.New("cache backend does not support prefix deletion")
+	}
+	return store.DeletePrefix(ctx, c.prefix+":"+rawPrefix)
+}
+
 func (c *Redis) Close() error {
 	c.closeOnce.Do(func() {
 		if c.close != nil {
@@ -209,6 +227,25 @@ func (b *goRedisBackend) Set(ctx context.Context, key, value string, expiry time
 
 func (b *goRedisBackend) Delete(ctx context.Context, keys ...string) error {
 	return b.client.Del(ctx, keys...).Err()
+}
+
+func (b *goRedisBackend) DeletePrefix(ctx context.Context, prefix string) error {
+	var cursor uint64
+	for {
+		keys, next, err := b.client.Scan(ctx, cursor, prefix+"*", 256).Result()
+		if err != nil {
+			return err
+		}
+		if len(keys) > 0 {
+			if err := b.client.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			return nil
+		}
+	}
 }
 
 func (b *goRedisBackend) Ping(ctx context.Context) error {

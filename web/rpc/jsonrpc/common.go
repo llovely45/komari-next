@@ -14,16 +14,12 @@ import (
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/database/tasks"
 	"github.com/komari-monitor/komari/internal/config"
+	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/pkg/rpc"
 	v2 "github.com/komari-monitor/komari/protocol/v2"
 	"github.com/komari-monitor/komari/utils"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
-
-	cache "github.com/patrickmn/go-cache"
 )
-
-// pingstats:<uuid>
-var pingStatsCache = cache.New(1*time.Minute, 2*time.Minute)
 
 type pingStat struct {
 	Name   string  `json:"name"`
@@ -40,126 +36,122 @@ func getPingStatsForNode(uuid string, pingTasks []models.PingTask) map[string]pi
 	if uuid == "" {
 		return map[string]pingStat{}
 	}
-	key := fmt.Sprintf("pingstats:%s", uuid)
-	if v, ok := pingStatsCache.Get(key); ok {
-		if m, ok2 := v.(map[string]pingStat); ok2 {
-			return m
-		}
-	}
-	// 筛选属于该节点的任务
-	assigned := make([]models.PingTask, 0, 4)
-	for _, t := range pingTasks {
-		if t.AppliesToClient(uuid) {
-			assigned = append(assigned, t)
-		}
-	}
-	if len(assigned) == 0 {
-		empty := map[string]pingStat{}
-		pingStatsCache.Set(key, empty, cache.DefaultExpiration)
-		return empty
-	}
-	end := time.Now().UTC()
-	start := end.Add(-1 * time.Hour)
-	recs, err := tasks.GetPingRecords(uuid, -1, start, end)
-	if err != nil || len(recs) == 0 {
-		empty := map[string]pingStat{}
-		pingStatsCache.Set(key, empty, cache.DefaultExpiration)
-		return empty
-	}
-	grouped := make(map[uint][]models.PingRecord)
-	for _, r := range recs {
-		for _, t := range assigned {
-			if r.TaskId == t.Id {
-				grouped[r.TaskId] = append(grouped[r.TaskId], r)
-				break
+	key := metricstore.MetricPingStatsCacheKey(uuid)
+	result, err := metricstore.ReadCached(context.Background(), key, time.Minute, func(context.Context) (map[string]pingStat, error) {
+		// 筛选属于该节点的任务
+		assigned := make([]models.PingTask, 0, 4)
+		for _, t := range pingTasks {
+			if t.AppliesToClient(uuid) {
+				assigned = append(assigned, t)
 			}
 		}
-	}
-	result := make(map[string]pingStat, len(grouped))
-	for _, t := range assigned {
-		records := grouped[t.Id]
-		if len(records) == 0 {
-			continue
+		if len(assigned) == 0 {
+			return map[string]pingStat{}, nil
 		}
-		latest := -1
-		var latestTs time.Time
-		values := make([]int, 0, len(records))
-		sum := 0
-		valid := 0
-		total := 0
-		lossCount := 0
-		minLat := 0
-		maxLat := 0
-		for _, r := range records {
-			total++
-			if r.Value < 0 { // 丢包
-				lossCount++
+		end := time.Now().UTC()
+		start := end.Add(-1 * time.Hour)
+		recs, err := metricstore.GetPingRecordsUncached(context.Background(), uuid, -1, start, end)
+		if err != nil || len(recs) == 0 {
+			return map[string]pingStat{}, nil
+		}
+		grouped := make(map[uint][]models.PingRecord)
+		for _, r := range recs {
+			for _, t := range assigned {
+				if r.TaskId == t.Id {
+					grouped[r.TaskId] = append(grouped[r.TaskId], r)
+					break
+				}
+			}
+		}
+		result := make(map[string]pingStat, len(grouped))
+		for _, t := range assigned {
+			records := grouped[t.Id]
+			if len(records) == 0 {
 				continue
 			}
-			values = append(values, r.Value)
-			sum += r.Value
-			valid++
-			if minLat == 0 || r.Value < minLat {
-				minLat = r.Value
-			}
-			if r.Value > maxLat {
-				maxLat = r.Value
-			}
-			ts := r.Time
-			if latestTs.IsZero() || ts.After(latestTs) {
-				latestTs = ts
-				latest = r.Value
-			}
-		}
-		avg := 0
-		if valid > 0 {
-			avg = sum / valid
-		}
-		p50, p99 := 0, 0
-		if len(values) > 0 {
-			sort.Ints(values)
-			percentile := func(vals []int, pct float64) int {
-				if len(vals) == 0 {
-					return 0
+			latest := -1
+			var latestTs time.Time
+			values := make([]int, 0, len(records))
+			sum := 0
+			valid := 0
+			total := 0
+			lossCount := 0
+			minLat := 0
+			maxLat := 0
+			for _, r := range records {
+				total++
+				if r.Value < 0 { // 丢包
+					lossCount++
+					continue
 				}
-				if pct <= 0 {
-					return vals[0]
+				values = append(values, r.Value)
+				sum += r.Value
+				valid++
+				if minLat == 0 || r.Value < minLat {
+					minLat = r.Value
 				}
-				if pct >= 1 {
-					return vals[len(vals)-1]
+				if r.Value > maxLat {
+					maxLat = r.Value
 				}
-				pos := (float64(len(vals) - 1)) * pct
-				lo := int(math.Floor(pos))
-				hi := int(math.Ceil(pos))
-				if lo == hi {
-					return vals[lo]
+				ts := r.Time
+				if latestTs.IsZero() || ts.After(latestTs) {
+					latestTs = ts
+					latest = r.Value
 				}
-				frac := pos - float64(lo)
-				v := float64(vals[lo]) + (float64(vals[hi])-float64(vals[lo]))*frac
-				return int(math.Round(v))
 			}
-			p50 = percentile(values, 0.50)
-			p99 = percentile(values, 0.99)
+			avg := 0
+			if valid > 0 {
+				avg = sum / valid
+			}
+			p50, p99 := 0, 0
+			if len(values) > 0 {
+				sort.Ints(values)
+				percentile := func(vals []int, pct float64) int {
+					if len(vals) == 0 {
+						return 0
+					}
+					if pct <= 0 {
+						return vals[0]
+					}
+					if pct >= 1 {
+						return vals[len(vals)-1]
+					}
+					pos := (float64(len(vals) - 1)) * pct
+					lo := int(math.Floor(pos))
+					hi := int(math.Ceil(pos))
+					if lo == hi {
+						return vals[lo]
+					}
+					frac := pos - float64(lo)
+					v := float64(vals[lo]) + (float64(vals[hi])-float64(vals[lo]))*frac
+					return int(math.Round(v))
+				}
+				p50 = percentile(values, 0.50)
+				p99 = percentile(values, 0.99)
+			}
+			tail := 0.0
+			if p50 > 0 && p99 >= p50 {
+				tail = float64(p99-p50) / float64(p50)
+			}
+			lossRate := 0.0
+			if total > 0 {
+				lossRate = float64(lossCount) / float64(total) * 100
+			}
+			result[fmt.Sprintf("%d", t.Id)] = pingStat{
+				Name:   t.Name,
+				Latest: latest,
+				Avg:    avg,
+				Tail:   tail,
+				Loss:   lossRate,
+				Min:    minLat,
+				Max:    maxLat,
+			}
 		}
-		tail := 0.0
-		if p50 > 0 && p99 >= p50 {
-			tail = float64(p99-p50) / float64(p50)
-		}
-		lossRate := 0.0
-		if total > 0 {
-			lossRate = float64(lossCount) / float64(total) * 100
-		}
-		result[fmt.Sprintf("%d", t.Id)] = pingStat{
-			Name:   t.Name,
-			Latest: latest,
-			Avg:    avg,
-			Tail:   tail,
-			Loss:   lossRate,
-			Min:    minLat,
-			Max:    maxLat,
-		}
+		return result, nil
+	})
+	if err != nil {
+		return map[string]pingStat{}
 	}
-	pingStatsCache.Set(key, result, cache.DefaultExpiration)
 	return result
 }
 

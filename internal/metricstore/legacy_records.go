@@ -17,7 +17,13 @@ func GetRecordsByClientAndTime(ctx context.Context, clientUUID string, start, en
 		return nil, fmt.Errorf("metric store not enabled")
 	}
 
-	return getRecordsByClientAndTimeFromSeries(ctx, s, clientUUID, start, end)
+	now := time.Now().UTC()
+	key := QueryCacheKey("records:client", struct {
+		ClientUUID string `json:"client_uuid"`
+	}{clientUUID}, start, end, now)
+	return readMetricQueryCached(ctx, key, QueryCacheTTL(end, now), func(ctx context.Context) ([]models.Record, error) {
+		return getRecordsByClientAndTimeFromSeries(ctx, s, clientUUID, start, end)
+	})
 }
 
 // GetRecordMetricMaxByClientAndTime 查询单项监控指标在各时间桶内的最大值。
@@ -27,7 +33,14 @@ func GetRecordMetricMaxByClientAndTime(ctx context.Context, clientUUID, recordMe
 		return nil, fmt.Errorf("metric store not enabled")
 	}
 
-	return getRecordMetricMaxByClientAndTimeFromSeries(ctx, s, clientUUID, recordMetric, start, end)
+	now := time.Now().UTC()
+	key := QueryCacheKey("records:metric-max", struct {
+		ClientUUID string `json:"client_uuid"`
+		Metric     string `json:"metric"`
+	}{clientUUID, recordMetric}, start, end, now)
+	return readMetricQueryCached(ctx, key, QueryCacheTTL(end, now), func(ctx context.Context) ([]models.Record, error) {
+		return getRecordMetricMaxByClientAndTimeFromSeries(ctx, s, clientUUID, recordMetric, start, end)
+	})
 }
 
 // GetRecordsByTime 从 metric store 查询所有客户端在时间范围内的记录
@@ -37,6 +50,14 @@ func GetRecordsByTime(ctx context.Context, start, end time.Time) ([]models.Recor
 		return nil, fmt.Errorf("metric store not enabled")
 	}
 
+	now := time.Now().UTC()
+	key := QueryCacheKey("records:all", struct{}{}, start, end, now)
+	return readMetricQueryCached(ctx, key, QueryCacheTTL(end, now), func(ctx context.Context) ([]models.Record, error) {
+		return getRecordsByTimeFromSeries(ctx, s, start, end)
+	})
+}
+
+func getRecordsByTimeFromSeries(ctx context.Context, s *metric.Store, start, end time.Time) ([]models.Record, error) {
 	interval := recordSeriesInterval(s, start, end, time.Now().UTC())
 	entityIDs, err := listRecordEntityIDs(ctx, s, start, end, interval)
 	if err != nil {
@@ -242,7 +263,16 @@ func GetGPURecordsByClientAndTime(ctx context.Context, clientUUID string, start,
 	if s == nil {
 		return nil, fmt.Errorf("metric store not enabled")
 	}
+	now := time.Now().UTC()
+	key := QueryCacheKey("records:gpu", struct {
+		ClientUUID string `json:"client_uuid"`
+	}{clientUUID}, start, end, now)
+	return readMetricQueryCached(ctx, key, QueryCacheTTL(end, now), func(ctx context.Context) ([]models.GPURecord, error) {
+		return getGPURecordsByClientAndTimeFromSeries(ctx, s, clientUUID, start, end)
+	})
+}
 
+func getGPURecordsByClientAndTimeFromSeries(ctx context.Context, s *metric.Store, clientUUID string, start, end time.Time) ([]models.GPURecord, error) {
 	// 查询 GPU 相关指标（每设备利用率使用独立指标 gpu.device.usage）
 	gpuMetrics := []string{MetricGPUDeviceUsage, MetricGPUMem, MetricGPUMemTotal, MetricGPUTemp}
 

@@ -19,11 +19,7 @@ type RetentionSummary struct {
 // GetRetentionSummary aggregates the active store's metric definitions. An
 // empty definition set is not considered record-enabled.
 func GetRetentionSummary(ctx context.Context) (RetentionSummary, error) {
-	s := GetStore()
-	if s == nil {
-		return RetentionSummary{}, fmt.Errorf("metric store not initialized")
-	}
-	defs, err := s.ListMetrics(ctx)
+	defs, err := GetMetricDefinitions(ctx)
 	if err != nil {
 		return RetentionSummary{}, err
 	}

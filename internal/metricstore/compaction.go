@@ -56,5 +56,8 @@ func CleanupExpired(ctx context.Context, now time.Time) (int64, error) {
 	if err != nil {
 		return deleted, fmt.Errorf("clean up expired metric data: %w", err)
 	}
+	if deleted > 0 {
+		InvalidateMetricQueryCache(ctx)
+	}
 	return deleted, nil
 }

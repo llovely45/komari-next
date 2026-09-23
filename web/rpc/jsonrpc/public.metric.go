@@ -125,11 +125,7 @@ type publicPingMetricStatsResponse struct {
 }
 
 func publicListMetricDefinitions(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	store := metricstore.GetStore()
-	if store == nil {
-		return nil, rpc.MakeError(rpc.InternalError, "metric store not initialized", nil)
-	}
-	defs, err := store.ListMetrics(ctx)
+	defs, err := metricstore.GetMetricDefinitions(ctx)
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to list metric definitions: "+err.Error(), nil)
 	}
@@ -205,7 +201,7 @@ func publicQueryMetrics(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 	rollupValues := make(map[string]map[metric.Aggregation][]metric.AggregatePoint)
 	if len(entityIDs) > 0 && useRaw {
 		var err error
-		definitions, err = store.GetMetrics(ctx, metricKeys)
+		definitions, err = metricstore.GetMetricDefinitionsByName(ctx, metricKeys)
 		if err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to query metric definitions: "+err.Error(), nil)
 		}
@@ -214,7 +210,7 @@ func publicQueryMetrics(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 				return nil, rpc.MakeError(rpc.InvalidParams, "unknown metric key: "+spec.metricKey, nil)
 			}
 		}
-		rawValues, err = store.QueryBatch(ctx, metric.BatchQuery{
+		rawValues, err = metricstore.QueryBatchCached(ctx, store, metric.BatchQuery{
 			MetricNames: metricKeys,
 			EntityIDs:   entityIDs,
 			Start:       start,
@@ -237,7 +233,7 @@ func publicQueryMetrics(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 				PreserveSeries: true,
 			})
 		}
-		loaded, err := store.SeriesBatch(ctx, metric.BatchSeriesQuery{
+		loaded, err := metricstore.SeriesBatchCached(ctx, store, metric.BatchSeriesQuery{
 			Specs:     batchSpecs,
 			EntityIDs: entityIDs,
 			Start:     start,
@@ -257,7 +253,7 @@ func publicQueryMetrics(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 		}
 	} else {
 		var err error
-		definitions, err = store.GetMetrics(ctx, metricKeys)
+		definitions, err = metricstore.GetMetricDefinitionsByName(ctx, metricKeys)
 		if err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to query metric definitions: "+err.Error(), nil)
 		}
@@ -788,7 +784,7 @@ func loadPublicPingMetricAggregateGroups(ctx context.Context, store *metric.Stor
 		metric.AggP99,
 		metric.AggStdDev,
 	}
-	loaded, err := store.SeriesBatch(ctx, metric.BatchSeriesQuery{
+	loaded, err := metricstore.SeriesBatchCached(ctx, store, metric.BatchSeriesQuery{
 		Specs: []metric.BatchSeriesSpec{
 			{MetricName: metricstore.MetricPingLatency, Aggregations: latencyAggregations, Interval: interval, PreserveSeries: true},
 			{MetricName: metricstore.MetricPingLoss, Aggregations: []metric.Aggregation{metric.AggAvg}, Interval: interval, PreserveSeries: true},

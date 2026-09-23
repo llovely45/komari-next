@@ -45,11 +45,7 @@ func metricDescriptionValue(raw string) any {
 }
 
 func adminListMetricDefinitions(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	store := metricstore.GetStore()
-	if store == nil {
-		return nil, rpc.MakeError(rpc.InternalError, "metric store not initialized", nil)
-	}
-	defs, err := store.ListMetrics(ctx)
+	defs, err := metricstore.GetMetricDefinitions(ctx)
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to list metric definitions: "+err.Error(), nil)
 	}
@@ -95,6 +91,7 @@ func adminUpdateMetricDefinition(ctx context.Context, req *rpc.JsonRpcRequest) (
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to update metric definition: "+err.Error(), nil)
 	}
+	metricstore.InvalidateMetricDefinitions(ctx)
 	if params.RetentionDays == 0 {
 		metricstore.DeleteMetricDataAsync(params.Name)
 	}

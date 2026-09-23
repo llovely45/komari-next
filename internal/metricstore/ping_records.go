@@ -59,7 +59,21 @@ func writePingRecords(ctx context.Context, records []models.PingRecord) error {
 			},
 		)
 	}
-	return s.WriteBatch(ctx, points)
+	if err := s.WriteBatch(ctx, points); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{})
+	for _, record := range records {
+		if record.Client == "" {
+			continue
+		}
+		if _, ok := seen[record.Client]; ok {
+			continue
+		}
+		seen[record.Client] = struct{}{}
+		DeleteCacheKey(ctx, MetricPingStatsCacheKey(record.Client))
+	}
+	return nil
 }
 
 func GetPingRecords(ctx context.Context, clientUUID string, taskID int, start, end time.Time) ([]models.PingRecord, error) {
@@ -67,7 +81,27 @@ func GetPingRecords(ctx context.Context, clientUUID string, taskID int, start, e
 	if s == nil {
 		return nil, fmt.Errorf("metric store not enabled")
 	}
+	now := time.Now().UTC()
+	key := QueryCacheKey("ping:records", struct {
+		ClientUUID string `json:"client_uuid"`
+		TaskID     int    `json:"task_id"`
+	}{clientUUID, taskID}, start, end, now)
+	return readMetricQueryCached(ctx, key, QueryCacheTTL(end, now), func(ctx context.Context) ([]models.PingRecord, error) {
+		return getPingRecordsFromSeries(ctx, s, clientUUID, taskID, start, end)
+	})
+}
 
+// GetPingRecordsUncached bypasses Redis for callers that need a fresh source
+// read before storing a longer-lived derived summary.
+func GetPingRecordsUncached(ctx context.Context, clientUUID string, taskID int, start, end time.Time) ([]models.PingRecord, error) {
+	s := GetStore()
+	if s == nil {
+		return nil, fmt.Errorf("metric store not enabled")
+	}
+	return getPingRecordsFromSeries(ctx, s, clientUUID, taskID, start, end)
+}
+
+func getPingRecordsFromSeries(ctx context.Context, s *metric.Store, clientUUID string, taskID int, start, end time.Time) ([]models.PingRecord, error) {
 	query := metric.Query{
 		MetricName: MetricPingLatency,
 		Start:      start,

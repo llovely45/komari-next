@@ -5,6 +5,7 @@ import (
 
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/database/tasks"
+	"github.com/komari-monitor/komari/internal/metricstore"
 	"github.com/komari-monitor/komari/pkg/rpc"
 )
 
@@ -39,7 +40,7 @@ func init() {
 	})
 }
 
-func adminAddPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+func adminAddPingTask(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	var params struct {
 		Clients   []string `json:"clients"`
 		DefaultOn bool     `json:"default_on"`
@@ -59,10 +60,11 @@ func adminAddPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.Jso
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
+	metricstore.InvalidatePingStatsCache(ctx)
 	return map[string]any{"task_id": taskID}, nil
 }
 
-func adminDeletePingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+func adminDeletePingTask(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	var params struct {
 		ID []uint `json:"id"`
 	}
@@ -73,10 +75,11 @@ func adminDeletePingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.
 	if err := tasks.DeletePingTask(params.ID); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
+	metricstore.InvalidatePingStatsCache(ctx)
 	return nil, nil
 }
 
-func adminEditPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+func adminEditPingTask(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	var params struct {
 		Tasks []*models.PingTask `json:"tasks"`
 	}
@@ -92,6 +95,7 @@ func adminEditPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.Js
 	if err := tasks.EditPingTask(params.Tasks); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
+	metricstore.InvalidatePingStatsCache(ctx)
 	return nil, nil
 }
 
@@ -103,7 +107,7 @@ func adminGetAllPingTasks(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.J
 	return list, nil
 }
 
-func adminOrderPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+func adminOrderPingTask(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	// 参数为 { idStr: weight } 映射。
 	order := map[uint]int{}
 	var raw map[string]int
@@ -120,5 +124,6 @@ func adminOrderPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.J
 	if err := tasks.UpdatePingTaskOrder(order); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
+	metricstore.InvalidatePingStatsCache(ctx)
 	return nil, nil
 }

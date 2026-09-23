@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/komari-monitor/komari/internal/cache"
+	"github.com/komari-monitor/komari/internal/metricstore"
 )
 
 type builtinRedis interface {
@@ -38,6 +39,10 @@ func (a *App) InitCache() error {
 	}
 
 	a.cacheStore = redisCache
-	a.addCleanup("cache", func(context.Context) error { return redisCache.Close() })
+	metricstore.SetCache(redisCache)
+	a.addCleanup("cache", func(context.Context) error {
+		metricstore.SetCache(cache.Noop{})
+		return redisCache.Close()
+	})
 	return nil
 }
