@@ -34,6 +34,23 @@
       "url": "https://github.com/llovely45/komari-next/tree/main/plugins/ddns",
       "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.2.0.zip",
       "sha256": "a3bd6014a8316c71b88fb8cedfec21a7579794834d43e194f3adde70c35dd726"
+    },
+    {
+      "name": {
+        "zh_CN": "节点备份恢复",
+        "en": "Node Backup & Restore"
+      },
+      "short": "client-backup",
+      "description": {
+        "zh_CN": "导出服务器列表中的节点数据，并按 IPv4 安全恢复。",
+        "en": "Export node data and restore it safely by matching IPv4 addresses."
+      },
+      "version": "1.0.0",
+      "author": "Komari Next",
+      "komari": ">=1.0.20",
+      "url": "https://github.com/llovely45/komari-next/tree/main/plugins/client-backup",
+      "download": "https://komari-next.pages.dev/plugin-market/client-backup-1.0.0.zip",
+      "sha256": "44cd952736895800a8db29485a4f15ebf1b0d3f554b527a94296e46083af6dd2"
     }
   ]
 }
