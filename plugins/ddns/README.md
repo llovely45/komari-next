@@ -10,7 +10,7 @@ Go 编写并编译为 Go 1.25 `wasip1/wasm` 模块，由 Komari 的 Wazero 宿�
 python3 scripts/package-ddns.py
 ```
 
-最低要求 Komari Next `1.0.19`。脚本编译 `plugins/ddns` 为 WASI 模块、更新 manifest 的 `entrySha256`，并生成对应版本的 ZIP 和 SHA-256 文件。上传 ZIP 后，在插件管理页批准插件申请的 Go RPC、插件 RPC 路由和 HTTPS 网络能力，再启用插件并打开「动态 DNS」管理页。插件 ID 沿用 `cloudflare-ddns`，升级会保留插件数据。
+最低要求 Komari Next `1.0.20`。脚本编译 `plugins/ddns` 为 WASI 模块、更新 manifest 的 `entrySha256`，并生成对应版本的 ZIP 和 SHA-256 文件。上传 ZIP 后，在插件管理页批准插件申请的 Go RPC、插件 RPC 路由和 HTTPS 网络能力，再启用插件并打开「动态 DNS」管理页。插件 ID 沿用 `cloudflare-ddns`，升级会替换旧插件文件并保留插件数据。
 
 Go 插件没有宿主文件系统挂载；配置和运行状态通过宿主受限存储接口写入 `data/plugin-data/cloudflare-ddns`。宿主对每个插件限制单文件 2 MiB、存储总量 128 MiB，并拒绝路径穿越和符号链接。网络接口只允许访问公网 HTTPS 443，且不跟随 HTTP 重定向。读取节点时宿主只向插件提供 UUID、名称、IPv4、IPv6 和分组字段。
 

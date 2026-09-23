@@ -294,6 +294,7 @@ func (g *goWASIRuntime) runModule() error {
 	g.readyOnce.Do(func() { g.ready <- nil })
 	sessionDone := make(chan error, 1)
 	go func() { sessionDone <- pluginSession.Serve() }()
+	go g.wakeWASIGuest(ctx, pluginSession)
 	go g.watchHeartbeat(ctx, cancel, pluginSession)
 
 	select {
@@ -316,6 +317,23 @@ func (g *goWASIRuntime) runModule() error {
 		pluginSession.Close()
 		g.clearSession(pluginSession)
 		return ctx.Err()
+	}
+}
+
+func (g *goWASIRuntime) wakeWASIGuest(ctx context.Context, session *pluginprocess.Session) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// A no-op event wakes a Go/WASI guest whose stdin read is blocking,
+			// allowing the guest scheduler and heartbeat goroutine to run.
+			if err := session.Notify("wakeup", nil); err != nil {
+				return
+			}
+		}
 	}
 }
 

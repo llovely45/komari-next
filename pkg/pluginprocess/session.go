@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -264,7 +265,7 @@ func (c *Client) Start(ctx context.Context, reader io.Reader, writer io.Writer, 
 	}
 	clientCtx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
-	c.session = NewSession(clientCtx, c.stream, c.handleCall, nil)
+	c.session = NewSession(clientCtx, c.stream, c.handleCall, c.handleEvent)
 	go func() {
 		c.ready <- c.session.Serve()
 		cancel()
@@ -281,6 +282,15 @@ func (c *Client) Start(ctx context.Context, reader io.Reader, writer io.Writer, 
 		return fmt.Errorf("register plugin RPC methods: %w", err)
 	}
 	return nil
+}
+
+func (c *Client) handleEvent(_ context.Context, message Message) {
+	if message.Method == "wakeup" {
+		// Go/WASI can block the entire guest while stdin waits for a frame.
+		// Yield when the host sends a no-op event so timers and other goroutines
+		// get a chance to run between protocol messages.
+		runtime.Gosched()
+	}
 }
 
 func (c *Client) heartbeat(ctx context.Context) {

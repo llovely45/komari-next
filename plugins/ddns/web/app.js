@@ -278,7 +278,7 @@ async function refreshNodes(force) {
   if (!$("editor").hidden && $("source-mode").value === "nodes") {
     drawServers(selectedNodeIDs());
   }
-  nodesRequest = request("plugin:cloudflare-ddns:clients", {}, 30000).then(value => {
+  nodesRequest = request("plugin:cloudflare-ddns:clients", {}, 50000).then(value => {
     nodes = value || [];
     nodesError = "";
     nodesLoaded = true;

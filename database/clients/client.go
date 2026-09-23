@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	logger "github.com/komari-monitor/komari/utils/log"
@@ -213,8 +214,25 @@ func GetAllClientBasicInfo() (clients []models.Client, err error) {
 
 // GetAllDDNSClientInfo returns only the client fields used by the DDNS plugin.
 func GetAllDDNSClientInfo(ctx context.Context) (clients []models.Client, err error) {
+	started := time.Now()
 	db := dbcore.GetDBInstance().WithContext(ctx)
+	var before sql.DBStats
+	if pool, poolErr := db.DB(); poolErr == nil {
+		before = pool.Stats()
+	}
 	err = db.Select("uuid", "name", "ipv4", "ipv6", "group").Find(&clients).Error
+	if elapsed := time.Since(started); elapsed >= 2*time.Second || err != nil {
+		var waitCount int64
+		var waitDuration time.Duration
+		var inUse int
+		if pool, poolErr := db.DB(); poolErr == nil {
+			after := pool.Stats()
+			waitCount = after.WaitCount - before.WaitCount
+			waitDuration = after.WaitDuration - before.WaitDuration
+			inUse = after.InUse
+		}
+		logger.Warnf("ddns", "node list query took %s (err=%v; db pool wait_count=%d; wait_duration=%s; in_use=%d)", elapsed.Round(time.Millisecond), err, waitCount, waitDuration.Round(time.Millisecond), inUse)
+	}
 	if err != nil {
 		return nil, err
 	}
