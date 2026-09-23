@@ -39,6 +39,8 @@ type rule struct {
 	Provider      string   `json:"provider"`
 	Domain        string   `json:"domain"`
 	Type          string   `json:"type"`
+	Source        string   `json:"source,omitempty"`
+	ManualIP      string   `json:"manualIP,omitempty"`
 	Line          string   `json:"line,omitempty"`
 	Interval      int      `json:"interval"`
 	Servers       []string `json:"servers"`
@@ -263,6 +265,26 @@ func normalizeRule(raw, old rule, hasOld bool) (rule, error) {
 	if value.Type != "A" && value.Type != "AAAA" {
 		return rule{}, errors.New("记录类型只能是 A 或 AAAA")
 	}
+	value.Source = strings.TrimSpace(value.Source)
+	if value.Source == "" {
+		value.Source = "nodes"
+	}
+	switch value.Source {
+	case "nodes":
+		value.ManualIP = ""
+		if len(value.Servers) < 1 || len(value.Servers) > 20 {
+			return rule{}, errors.New("每条规则请选择 1–20 个不同的 Komari 节点")
+		}
+	case "manual":
+		value.Servers = nil
+		address, err := normalizeManualAddress(value.ManualIP, value.Type)
+		if err != nil {
+			return rule{}, err
+		}
+		value.ManualIP = address
+	default:
+		return rule{}, errors.New("请选择 Komari 节点或手动指定 IP")
+	}
 	if value.Provider == "huaweicloud" {
 		value.Line = strings.TrimSpace(value.Line)
 		if value.Line == "" {
@@ -276,9 +298,6 @@ func normalizeRule(raw, old rule, hasOld bool) (rule, error) {
 	}
 	if !intervals[value.Interval] {
 		return rule{}, errors.New("更新间隔只能是 1、5、10、15、30 或 60 分钟")
-	}
-	if len(value.Servers) < 1 || len(value.Servers) > 20 {
-		return rule{}, errors.New("每条规则请选择 1–20 个不同的 Komari 节点")
 	}
 	seen := make(map[string]bool, len(value.Servers))
 	for _, uuid := range value.Servers {
@@ -412,6 +431,24 @@ func validAddress(node *clientInfo, recordType string) (string, error) {
 	}
 	if ipv4 := ip.To4(); ipv4 != nil && ipv4[0] >= 224 {
 		return "", errors.New("来源节点的 IP 是未指定、回环、链路本地或组播地址")
+	}
+	return ip.String(), nil
+}
+
+func normalizeManualAddress(value, recordType string) (string, error) {
+	value = strings.TrimSpace(value)
+	ip := net.ParseIP(value)
+	if (recordType == "A" && (ip == nil || ip.To4() == nil)) || (recordType == "AAAA" && (ip == nil || ip.To4() != nil)) {
+		if recordType == "A" {
+			return "", errors.New("请输入有效的 IPv4 地址")
+		}
+		return "", errors.New("请输入有效的 IPv6 地址")
+	}
+	if ip.IsUnspecified() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsMulticast() {
+		return "", errors.New("IP 不能是未指定、回环、链路本地或组播地址")
+	}
+	if ipv4 := ip.To4(); ipv4 != nil && ipv4[0] >= 224 {
+		return "", errors.New("IP 不能是未指定、回环、链路本地或组播地址")
 	}
 	return ip.String(), nil
 }

@@ -5,15 +5,15 @@
   },
   "short": "cloudflare-ddns",
   "description": {
-    "zh_CN": "从 Komari 节点读取 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS。",
-    "en": "Update Cloudflare or Huawei Cloud International DNS records from Komari node addresses."
+    "zh_CN": "从 Komari 节点或手动指定 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS。",
+    "en": "Update Cloudflare or Huawei Cloud International DNS records from Komari nodes or manually specified addresses."
   },
   "author": "Komari Next",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "komari": ">=1.0.19",
   "runtime": "go-wasi",
   "entry": "plugin.wasm",
-  "entrySha256": "40036e5d16bd24f0d7e0f130dc146916f836f6adca5fe6d0a577a414a1ca52f8",
+  "entrySha256": "05107e206a0dc9e28fa282aa3098dfaf5e35ba3179d871c48227f605ac6fd079",
   "rpcMethods": [
     "plugin:cloudflare-ddns:state",
     "plugin:cloudflare-ddns:clients",

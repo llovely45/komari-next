@@ -6,6 +6,11 @@ const DAY_NAMES = ["周日", "周一", "周二", "周三", "周四", "周五", "
 let state = null;
 let nodes = [];
 let nodesError = "";
+let nodesLoading = false;
+let nodesLoaded = false;
+let nodesRequest = null;
+let stateRequest = null;
+let currentNodeSelection = [];
 let huaweiLines = [{ line: "default", line_name: "默认线路" }];
 let huaweiLinesDomain = "";
 let loadingHuaweiLines = false;
@@ -28,13 +33,24 @@ function showNotice(message, kind) {
   if (message) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-async function request(method, params) {
-  const response = await fetch(API, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", method, params: params || {}, id: ++requestID })
-  });
+async function request(method, params, timeoutMs) {
+  const controller = timeoutMs && typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = timeoutMs ? window.setTimeout(() => { if (controller) controller.abort(); }, timeoutMs) : 0;
+  let response;
+  try {
+    response = await fetch(API, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method, params: params || {}, id: ++requestID }),
+      signal: controller ? controller.signal : undefined
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") throw new Error("读取节点列表超时，可重试或改用手动 IP。");
+    throw error;
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
   let envelope;
   try { envelope = await response.json(); }
   catch (_) { throw new Error("服务端返回了无效响应"); }
@@ -53,17 +69,93 @@ function normalizeDomainKey(value) {
 
 function huaweiLineName(id) {
   const line = huaweiLines.find(value => value.line === (id || "default"));
-  return line ? line.line_name || line.line : (id === "default" || !id ? "默认线路" : id);
+  return line ? line.line_name || line.line : (id === "default" || !id ? "全网默认" : id);
 }
 
-function drawHuaweiLines(selected) {
-  const value = selected || "default";
-  const options = huaweiLines.map(line => '<option value="' + escapeHTML(line.line) + '">' +
-    escapeHTML((line.line_name || line.line) + "（" + line.line + "）") + "</option>").join("");
-  const known = huaweiLines.some(line => line.line === value);
-  const saved = known ? "" : '<option value="' + escapeHTML(value) + '">已保存线路（' + escapeHTML(value) + "，请读取线路确认）</option>";
-  $("huawei-line").innerHTML = options + saved;
-  $("huawei-line").value = value;
+function isHuaweiLineType(line, kind) {
+  const id = String(line.line || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const name = String(line.line_name || "").trim().toLowerCase();
+  if (kind === "operator") return /^(isp|operator|operatorline|ispline)$/.test(id) || /^(运营商线路解析|运营商线路|运营商)$/.test(name);
+  return /^(region|geography|geo|arealine|regionline)$/.test(id) || /^(地域解析|地区解析|地域线路解析)$/.test(name);
+}
+
+function drawHuaweiLines(selected, requestedType) {
+  const byID = new Map(huaweiLines.map(line => [line.line, line]));
+  if (!byID.has("default")) byID.set("default", { line: "default", line_name: "全网默认", available: true });
+  const children = new Map();
+  huaweiLines.forEach(line => {
+    if (!line.father_id || line.father_id === line.line || !byID.has(line.father_id)) return;
+    const list = children.get(line.father_id) || [];
+    list.push(line);
+    children.set(line.father_id, list);
+  });
+  const hasAvailable = (id, seen) => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    const line = byID.get(id);
+    if (line && line.available) return true;
+    return (children.get(id) || []).some(child => hasAvailable(child.line, new Set(seen)));
+  };
+  const path = [];
+  let cursor = selected && byID.get(selected);
+  const visited = new Set();
+  while (cursor && !visited.has(cursor.line)) {
+    visited.add(cursor.line);
+    path.unshift(cursor.line);
+    cursor = byID.get(cursor.father_id);
+  }
+  const defaultLine = byID.get("default");
+  const operator = huaweiLines.find(line => isHuaweiLineType(line, "operator"));
+  const region = huaweiLines.find(line => isHuaweiLineType(line, "region"));
+  let categories = [defaultLine];
+  if (operator) categories.push(operator);
+  if (region) categories.push(region);
+  if (!operator && !region) {
+    let roots = huaweiLines.filter(line => !line.father_id || !byID.has(line.father_id) || line.father_id === line.line);
+    if (roots.length === 1 && roots[0].line === "default") roots = children.get("default") || [];
+    categories = [defaultLine].concat(roots.filter(line => line.line !== "default" && hasAvailable(line.line, new Set())));
+  }
+  categories = categories.filter((line, index, list) => list.findIndex(value => value.line === line.line) === index);
+  const pathCategory = categories.find(line => path.includes(line.line));
+  const activeType = (requestedType && categories.some(line => line.line === requestedType) ? requestedType : "") ||
+    (pathCategory && pathCategory.line) || (selected === "default" ? "default" : "default");
+  $("huawei-line-type").innerHTML = categories.map(line => '<option value="' + escapeHTML(line.line) + '">' +
+    escapeHTML(line.line === "default" ? "全网默认" : (line.line_name || line.line)) + "</option>").join("");
+  $("huawei-line-type").value = activeType;
+
+  const typeLine = byID.get(activeType) || defaultLine;
+  let parentID = typeLine.line;
+  let chosenLine = typeLine.available ? typeLine.line : "";
+  let pathIndex = path.indexOf(typeLine.line) + 1;
+  const levelIDs = ["huawei-line-level-1", "huawei-line-level-2", "huawei-line-level-3"];
+  const placeholders = ["选择区域或运营商", "地区默认", "省市默认"];
+  levelIDs.forEach((id, depth) => {
+    const select = $(id);
+    const options = (children.get(parentID) || []).filter(line => hasAvailable(line.line, new Set()));
+    const wanted = pathIndex > 0 ? path[pathIndex] : "";
+    if (!options.length) {
+      select.innerHTML = '<option value="">' + placeholders[depth] + "</option>";
+      select.disabled = true;
+      return;
+    }
+    const optionsHTML = options.map(line => '<option value="' + escapeHTML(line.line) + '">' +
+      escapeHTML(line.line_name || line.line) + "</option>").join("");
+    select.innerHTML = '<option value="">' + placeholders[depth] + "</option>" + optionsHTML;
+    select.disabled = false;
+    let selectedID = options.some(line => line.line === wanted) ? wanted : "";
+    if (!selectedID && !selected) {
+      const defaultChild = options.find(line => /默认|default/i.test(line.line_name || ""));
+      if (defaultChild) selectedID = defaultChild.line;
+    }
+    select.value = selectedID;
+    if (!selectedID) return;
+    const chosen = byID.get(selectedID);
+    if (chosen && chosen.available) chosenLine = chosen.line;
+    parentID = selectedID;
+    pathIndex++;
+  });
+  if (selected && path.length && activeType === "default" && selected !== "default") chosenLine = "";
+  $("huawei-line").value = chosenLine;
 }
 
 function formatTime(value) {
@@ -114,15 +206,16 @@ function render() {
   $("empty").hidden = rules.length > 0;
   $("sync-all").disabled = busy || rules.filter(rule => rule.enabled).length === 0;
   $("save").disabled = busy;
-  $("run-state").className = "state-pill " + (state.running ? "is-running" : "");
-  $("run-state").innerHTML = "<i></i>" + (state.running ? "同步中" : "运行正常");
+  $("run-state").className = "state-pill " + (state.running ? "is-running" : (state.lastError ? "is-error" : ""));
+  $("run-state").innerHTML = "<i></i>" + (state.running ? "同步中" : (state.lastError ? "存在错误" : "运行正常"));
   const nodeNames = new Map(nodes.map(node => [node.uuid, node.name]));
   $("rules").innerHTML = rules.map(rule => {
     const run = (state.history || {})[rule.id];
     const outcome = outcomeLabel(run);
-    const serverNames = rule.servers.map(uuid => nodeNames.get(uuid) || uuid);
+    const serverNames = rule.source === "manual" ? ["指定 IP · " + rule.manualIP] :
+      (rule.servers || []).map(uuid => nodeNames.get(uuid) || uuid);
     const resultLines = run && Array.isArray(run.results) ? run.results.map(result => {
-      const name = nodeNames.get(result.uuid) || result.uuid || "";
+      const name = result.uuid === "manual" ? "指定 IP" : (nodeNames.get(result.uuid) || result.uuid || "");
       const detail = result.message || result.ip || (result.ips || []).join(", ") || result.action || "";
       return '<li><span>' + escapeHTML(name || providerLabel(rule.provider)) +
         '</span><span class="result-action ' + escapeHTML(result.action || "error") + '">' +
@@ -149,30 +242,61 @@ function render() {
         '<button class="button button-small button-plain" data-edit="' + escapeHTML(rule.id) + '" type="button">编辑</button></div>' +
     '</article>';
   }).join("");
-  $("save-hint").textContent = state.storageError || "密钥和规则只在点击保存后写入服务端。";
-  $("save-hint").className = state.storageError ? "save-error" : "";
+  $("save-hint").textContent = state.storageError || state.lastError || "密钥和规则只在点击保存后写入服务端。";
+  $("save-hint").className = state.storageError || state.lastError ? "save-error" : "";
   $("load-huawei-lines").disabled = busy || loadingHuaweiLines;
 }
 
-async function refresh() {
-  const values = await Promise.allSettled([
-    request("plugin:cloudflare-ddns:state"),
-    request("plugin:cloudflare-ddns:clients")
-  ]);
-  if (values[0].status === "rejected") throw values[0].reason;
-  state = values[0].value;
-  if (values[1].status === "rejected") {
-    nodes = [];
-    nodesError = values[1].reason && values[1].reason.message || "未知错误";
-  } else {
-    nodes = values[1].value || [];
+function refresh() {
+  if (stateRequest) return stateRequest;
+  stateRequest = request("plugin:cloudflare-ddns:state").then(value => {
+    state = value;
+    if (!refresh.draftLoaded) {
+      rules = (state.config.rules || []).map(rule => JSON.parse(JSON.stringify(rule)));
+      refresh.draftLoaded = true;
+    }
+    render();
+    if (!refresh.nodeNamesLoaded && rules.some(rule => rule.source !== "manual")) {
+      refresh.nodeNamesLoaded = true;
+      refreshNodes();
+    }
+  }).finally(() => {
+    stateRequest = null;
+  });
+  return stateRequest;
+}
+
+function selectedNodeIDs() {
+  return currentNodeSelection.slice();
+}
+
+async function refreshNodes(force) {
+  if (nodesRequest) return nodesRequest;
+  if (nodesLoaded && !force) return nodes;
+  nodesLoading = true;
+  nodesError = "";
+  if (!$("editor").hidden && $("source-mode").value === "nodes") {
+    drawServers(selectedNodeIDs());
+  }
+  nodesRequest = request("plugin:cloudflare-ddns:clients", {}, 30000).then(value => {
+    nodes = value || [];
     nodesError = "";
-  }
-  if (!refresh.draftLoaded) {
-    rules = (state.config.rules || []).map(rule => JSON.parse(JSON.stringify(rule)));
-    refresh.draftLoaded = true;
-  }
-  render();
+    nodesLoaded = true;
+    return nodes;
+  }).catch(error => {
+    nodes = [];
+    nodesError = error && error.message || "未知错误";
+    nodesLoaded = true;
+    return [];
+  }).finally(() => {
+    nodesLoading = false;
+    nodesRequest = null;
+    if (!$("editor").hidden && $("source-mode").value === "nodes") {
+      drawServers(selectedNodeIDs());
+    }
+    render();
+  });
+  return nodesRequest;
 }
 
 function newID() {
@@ -188,13 +312,23 @@ function drawWeekdays(selected) {
 }
 
 function drawServers(selected) {
+  currentNodeSelection = (selected || []).slice();
   const chosen = new Set(selected || []);
+  if (nodesLoading) {
+    $("server-list").innerHTML = '<div class="inline-empty">正在读取 Komari 节点列表…</div>';
+    return;
+  }
   if (nodesError) {
-    $("server-list").innerHTML = '<div class="inline-empty">读取节点失败：' + escapeHTML(nodesError) + '</div>';
+    $("server-list").innerHTML = '<div class="inline-empty">读取节点失败：' + escapeHTML(nodesError) +
+      ' <button class="button button-small button-muted" data-retry-nodes type="button">重试</button></div>';
+    return;
+  }
+  if (!nodesLoaded) {
+    $("server-list").innerHTML = '<div class="inline-empty">尚未读取节点列表。 <button class="button button-small button-muted" data-retry-nodes type="button">读取节点</button></div>';
     return;
   }
   if (!nodes.length) {
-    $("server-list").innerHTML = '<div class="inline-empty">暂时没有可选节点</div>';
+    $("server-list").innerHTML = '<div class="inline-empty">暂时没有可选节点。 <button class="button button-small button-muted" data-retry-nodes type="button">重试</button></div>';
     return;
   }
   $("server-list").innerHTML = nodes.map(node => {
@@ -213,6 +347,8 @@ function setEditor(rule) {
   $("rule-type").value = rule ? rule.type : "A";
   $("rule-interval").value = String(rule ? rule.interval : 5);
   $("rule-ttl").value = String(rule ? rule.ttl : 300);
+  $("source-mode").value = rule && rule.source === "manual" ? "manual" : "nodes";
+  $("manual-ip").value = rule && rule.manualIP || "";
   const domainKey = normalizeDomainKey(rule && rule.domain);
   if (domainKey && huaweiLinesDomain === domainKey) {
     drawHuaweiLines(rule && rule.line || "default");
@@ -231,6 +367,7 @@ function setEditor(rule) {
   $("schedule-end").value = schedule.end || "23:59";
   $("schedule-offset").value = String(schedule.utcOffsetMinutes == null ? 480 : schedule.utcOffsetMinutes);
   drawWeekdays(schedule.days || [0, 1, 2, 3, 4, 5, 6]);
+  currentNodeSelection = rule && rule.source !== "manual" ? (rule.servers || []).slice() : [];
   drawServers(rule ? rule.servers : []);
   $("delete-rule").hidden = !rule;
   $("editor").hidden = false;
@@ -240,12 +377,16 @@ function setEditor(rule) {
 
 function updateEditorFields() {
   const cloudflare = $("rule-provider").value === "cloudflare";
+  const manual = $("source-mode").value === "manual";
   $("proxy-option").hidden = !cloudflare;
   $("huawei-line-field").hidden = cloudflare;
+  $("manual-ip-field").hidden = !manual;
+  $("server-field").hidden = manual;
   if (!cloudflare) $("rule-proxied").checked = false;
   const enabled = $("schedule-enabled").checked;
   $("schedule-fields").classList.toggle("disabled", !enabled);
   $("schedule-fields").querySelectorAll("input").forEach(input => { input.disabled = !enabled; });
+  if (!manual && !nodesLoaded) refreshNodes();
 }
 
 async function loadHuaweiLines() {
@@ -297,10 +438,13 @@ function selectedValues(container) {
 
 function applyRule() {
   const domain = $("rule-domain").value.trim();
-  const servers = selectedValues($("server-list"));
+  const source = $("source-mode").value;
+  const servers = source === "nodes" ? selectedValues($("server-list")) : [];
+  const manualIP = source === "manual" ? $("manual-ip").value.trim() : "";
   const days = selectedValues($("weekdays")).map(Number);
   if (!domain) return showNotice("请填写完整域名。", "error");
-  if (!servers.length) return showNotice("至少选择一个来源节点。", "error");
+  if (source === "nodes" && !servers.length) return showNotice("至少选择一个来源节点。", "error");
+  if (source === "manual" && !manualIP) return showNotice("请填写要写入 DNS 的 IP 地址。", "error");
   if ($("schedule-enabled").checked && !days.length) return showNotice("时段限制至少要选择一个星期。", "error");
   const existing = editingId ? rules.find(rule => rule.id === editingId) : null;
   const provider = $("rule-provider").value;
@@ -315,6 +459,8 @@ function applyRule() {
     provider,
     domain,
     type: $("rule-type").value,
+    source,
+    manualIP,
     line,
     interval: Number($("rule-interval").value),
     servers,
@@ -441,7 +587,22 @@ $("cf-mode").addEventListener("change", () => {
   updateCFFields();
 });
 $("rule-provider").addEventListener("change", updateEditorFields);
+$("source-mode").addEventListener("change", updateEditorFields);
+$("server-list").addEventListener("click", event => {
+  if (event.target.closest("[data-retry-nodes]")) refreshNodes(true);
+});
+$("server-list").addEventListener("change", () => {
+  currentNodeSelection = selectedValues($("server-list"));
+});
 $("load-huawei-lines").addEventListener("click", loadHuaweiLines);
+$("huawei-line-type").addEventListener("change", () => drawHuaweiLines("", $("huawei-line-type").value));
+["huawei-line-level-1", "huawei-line-level-2", "huawei-line-level-3"].forEach(id => {
+  $(id).addEventListener("change", () => {
+    const selected = $("huawei-line-level-3").value || $("huawei-line-level-2").value ||
+      $("huawei-line-level-1").value || "";
+    drawHuaweiLines(selected, $("huawei-line-type").value);
+  });
+});
 $("rule-domain").addEventListener("input", () => {
   const key = normalizeDomainKey($("rule-domain").value);
   if (key === huaweiLinesDomain) return;

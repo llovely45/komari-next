@@ -106,14 +106,23 @@
         <label class="field"><span>记录类型</span><select id="rule-type"><option value="A">A · IPv4</option><option value="AAAA">AAAA · IPv6</option></select></label>
         <label class="field"><span>检查间隔</span><select id="rule-interval"><option value="1">每 1 分钟</option><option value="5" selected>每 5 分钟</option><option value="10">每 10 分钟</option><option value="15">每 15 分钟</option><option value="30">每 30 分钟</option><option value="60">每 60 分钟</option></select></label>
         <label class="field"><span>TTL（秒）</span><input id="rule-ttl" type="number" min="1" max="86400" step="60" value="300"><small>Cloudflare 填 1 表示自动；华为云有效范围为 60–86400 秒。</small></label>
+        <label class="field"><span>IP 来源</span><select id="source-mode"><option value="nodes">Komari 节点 IP</option><option value="manual">手动指定 IP</option></select><small>节点列表不可用时，可直接填写固定 IP。</small></label>
+        <label id="manual-ip-field" class="field" hidden><span>指定 IP</span><input id="manual-ip" type="text" placeholder="203.0.113.10" spellcheck="false"></label>
         <div id="huawei-line-field" class="field huawei-line-field" hidden>
           <span>华为云解析线路</span>
-          <div class="line-controls"><select id="huawei-line"><option value="default">默认线路（default）</option></select><button id="load-huawei-lines" class="button button-muted button-small" type="button">读取线路</button></div>
+          <input id="huawei-line" type="hidden" value="default">
+          <div class="line-controls">
+            <select id="huawei-line-type" aria-label="线路类型"><option value="default">全网默认</option></select>
+            <select id="huawei-line-level-1" aria-label="解析线路第一层" disabled><option>选择线路</option></select>
+            <select id="huawei-line-level-2" aria-label="解析线路第二层" disabled><option>地区默认</option></select>
+            <select id="huawei-line-level-3" aria-label="解析线路第三层" disabled><option>省市默认</option></select>
+            <button id="load-huawei-lines" class="button button-muted button-small" type="button">读取线路</button>
+          </div>
           <small id="huawei-line-hint">填写域名后读取该 DNS Zone 的可用线路；旧规则使用默认线路。</small>
         </div>
       </div>
-      <div class="field server-field">
-        <div class="field-label"><span>来源节点</span><small>只使用节点当前保存的 IPv4 / IPv6 地址。</small></div>
+      <div id="server-field" class="field server-field">
+        <div class="field-label"><span>来源节点</span><small>只使用节点当前保存的 IPv4 / IPv6 地址；若列表读取失败，可切换为手动指定 IP。</small></div>
         <div id="server-list" class="server-list"></div>
       </div>
       <div class="option-row">
@@ -148,11 +157,11 @@
     <section class="panel notes-panel">
       <div class="notes-mark">i</div>
       <div><h2>运行说明</h2>
-        <p>插件每分钟检查一次规则，到达更新间隔且处于设定时段时才会同步。A / AAAA 地址来自 Komari 节点列表，不会通过第三方网站探测服务器出口 IP。</p>
+        <p>插件每分钟检查一次规则，到达更新间隔且处于设定时段时才会同步。A / AAAA 地址来自 Komari 节点记录或手动指定值，不会通过第三方网站探测服务器出口 IP。</p>
         <p>已有同名记录默认不会覆盖；删除规则或停用插件不会删除云端解析。华为云区域应选择该公网 DNS Zone 所在的国际站区域。所有时段采用规则指定的固定 UTC 偏移，不自动切换夏令时。</p>
       </div>
     </section>
-    <footer>Komari Next · DDNS 2.1.0</footer>
+    <footer>Komari Next · DDNS 2.3.0</footer>
   </main>
 </body>
 </html>

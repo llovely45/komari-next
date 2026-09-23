@@ -79,8 +79,16 @@ type huaweiZone struct {
 }
 
 type huaweiLine struct {
-	ID   string `json:"line"`
-	Name string `json:"line_name"`
+	ID        string `json:"line"`
+	ParentID  string `json:"father_id,omitempty"`
+	Name      string `json:"line_name"`
+	Available bool   `json:"available"`
+}
+
+type huaweiSystemLine struct {
+	ID       string `json:"id"`
+	ParentID string `json:"father_id"`
+	Name     string `json:"name"`
 }
 
 func (p *huaweiProvider) listZones(ctx context.Context, name string) ([]huaweiZone, error) {
@@ -129,36 +137,77 @@ func (p *huaweiProvider) listLines(ctx context.Context, domain string) ([]huawei
 	if err != nil {
 		return nil, err
 	}
-	var response struct {
+	var zoneResponse struct {
 		Lines []huaweiLine `json:"lines"`
 	}
-	if err := json.Unmarshal(body, &response); err != nil || response.Lines == nil {
+	if err := json.Unmarshal(body, &zoneResponse); err != nil || zoneResponse.Lines == nil {
 		return nil, errors.New("华为云 DNS 解析线路列表格式无效")
 	}
-	lines := make([]huaweiLine, 0, len(response.Lines)+1)
-	hasDefault := false
-	for _, line := range response.Lines {
+	available := make(map[string]huaweiLine, len(zoneResponse.Lines)+1)
+	for _, line := range zoneResponse.Lines {
 		line.ID = strings.TrimSpace(line.ID)
 		line.Name = strings.TrimSpace(line.Name)
-		if line.ID == "" {
+		if line.ID != "" {
+			line.Available = true
+			available[line.ID] = line
+		}
+	}
+	if _, ok := available["default"]; !ok {
+		available["default"] = huaweiLine{ID: "default", Name: "全网默认", Available: true}
+	}
+
+	body, err = p.request(ctx, http.MethodGet, "/v2.1/system-lines", map[string]string{"locale": "zh-cn", "limit": "1000", "offset": "0"}, nil)
+	if err != nil {
+		return nil, err
+	}
+	var systemResponse struct {
+		Lines []huaweiSystemLine `json:"lines"`
+	}
+	if err := json.Unmarshal(body, &systemResponse); err != nil || systemResponse.Lines == nil {
+		return nil, errors.New("华为云 DNS 系统线路列表格式无效")
+	}
+	lines := make([]huaweiLine, 0, len(systemResponse.Lines)+len(available))
+	seen := make(map[string]bool, len(systemResponse.Lines)+len(available))
+	for _, systemLine := range systemResponse.Lines {
+		id := strings.TrimSpace(systemLine.ID)
+		if id == "" {
 			continue
 		}
-		if line.ID == "default" {
-			hasDefault = true
-			if line.Name == "" {
-				line.Name = "默认线路"
-			}
+		line, ok := available[id]
+		line.ID = id
+		line.ParentID = strings.TrimSpace(systemLine.ParentID)
+		line.Available = ok
+		if name := strings.TrimSpace(systemLine.Name); name != "" {
+			line.Name = name
+		}
+		if line.Name == "" {
+			line.Name = id
+		}
+		if id == "default" {
+			line.Name = "全网默认"
+			line.Available = true
 		}
 		lines = append(lines, line)
+		seen[id] = true
 	}
-	if !hasDefault {
-		lines = append(lines, huaweiLine{ID: "default", Name: "默认线路"})
+	for id, line := range available {
+		if seen[id] {
+			continue
+		}
+		if id == "default" {
+			line.Name = "全网默认"
+		}
+		line.Available = true
+		lines = append(lines, line)
 	}
 	sort.Slice(lines, func(i, j int) bool {
 		if lines[i].ID == "default" || lines[j].ID == "default" {
 			return lines[i].ID == "default" && lines[j].ID != "default"
 		}
-		return lines[i].Name < lines[j].Name
+		if lines[i].ParentID == lines[j].ParentID {
+			return lines[i].Name < lines[j].Name
+		}
+		return lines[i].ParentID < lines[j].ParentID
 	})
 	return lines, nil
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -162,19 +164,28 @@ func (s *service) save(ctx context.Context, input saveInput) (publicState, error
 	if err != nil {
 		return publicState{}, err
 	}
-	current, err := s.clients(ctx)
-	if err != nil {
-		return publicState{}, fmt.Errorf("无法读取 Komari 节点列表：%s", s.redact(err.Error()))
-	}
-	available := make(map[string]bool, len(current))
-	for _, node := range current {
-		available[node.UUID] = true
-	}
+	requiresNodes := false
 	for _, value := range next.Rules {
-		if value.Enabled {
-			for _, uuid := range value.Servers {
-				if !available[uuid] {
-					return publicState{}, errors.New("规则包含已删除的 Komari 节点，请重新选择")
+		if value.Enabled && value.Source == "nodes" {
+			requiresNodes = true
+			break
+		}
+	}
+	if requiresNodes {
+		current, err := s.clients(ctx)
+		if err != nil {
+			return publicState{}, fmt.Errorf("无法读取 Komari 节点列表：%s", s.redact(err.Error()))
+		}
+		available := make(map[string]bool, len(current))
+		for _, node := range current {
+			available[node.UUID] = true
+		}
+		for _, value := range next.Rules {
+			if value.Enabled && value.Source == "nodes" {
+				for _, uuid := range value.Servers {
+					if !available[uuid] {
+						return publicState{}, errors.New("规则包含已删除的 Komari 节点，请重新选择")
+					}
 				}
 			}
 		}
@@ -401,25 +412,52 @@ func (s *service) scheduleLoop(ctx context.Context) {
 func (s *service) execute(rules []rule) {
 	ctx := context.Background()
 	defer func() {
+		if recovered := recover(); recovered != nil {
+			message := "DDNS 同步任务异常终止（" + fmt.Sprintf("%T", recovered) + "）；详情见插件日志"
+			s.mu.Lock()
+			s.lastError = message
+			for _, value := range rules {
+				status := s.history[value.ID]
+				if status.Outcome == "running" {
+					status.Outcome = "error"
+					status.Error = message
+					status.FinishedAt = time.Now().UnixMilli()
+					status.NextAt = status.StartedAt + int64(value.Interval)*60_000
+					s.history[value.ID] = status
+				}
+			}
+			s.mu.Unlock()
+			fmt.Fprintf(os.Stderr, "%s\n%s", message, debug.Stack())
+			s.persistHistory(ctx)
+		}
 		s.mu.Lock()
 		s.running = false
 		s.mu.Unlock()
 	}()
-	nodes, err := s.clients(ctx)
-	if err != nil {
-		message := "无法读取 Komari 节点列表：" + s.redact(err.Error()) + "；下个周期会重试"
-		s.mu.Lock()
-		s.lastError = message
-		for _, value := range rules {
-			s.history[value.ID] = runStatus{Outcome: "error", Error: message, Results: []result{}, FinishedAt: time.Now().UnixMilli(), NextAt: time.Now().Add(time.Duration(value.Interval) * time.Minute).UnixMilli()}
+	needsNodes := false
+	for _, value := range rules {
+		if value.Source != "manual" {
+			needsNodes = true
+			break
 		}
-		s.mu.Unlock()
-		s.persistHistory(ctx)
-		return
 	}
-	current := make(map[string]*clientInfo, len(nodes))
-	for index := range nodes {
-		current[nodes[index].UUID] = &nodes[index]
+	current := make(map[string]*clientInfo)
+	var nodeListError error
+	if needsNodes {
+		nodes, err := s.clients(ctx)
+		if err != nil {
+			nodeListError = errors.New("无法读取 Komari 节点列表：" + s.redact(err.Error()) + "；下个周期会重试")
+		} else {
+			current = make(map[string]*clientInfo, len(nodes))
+			for index := range nodes {
+				current[nodes[index].UUID] = &nodes[index]
+			}
+		}
+	}
+	if nodeListError != nil {
+		s.mu.Lock()
+		s.lastError = nodeListError.Error()
+		s.mu.Unlock()
 	}
 	for _, value := range rules {
 		started := time.Now().UnixMilli()
@@ -427,21 +465,36 @@ func (s *service) execute(rules []rule) {
 		s.mu.Lock()
 		s.history[value.ID] = run
 		s.mu.Unlock()
+		if value.Source != "manual" && nodeListError != nil {
+			run.Outcome = "error"
+			run.Error = nodeListError.Error()
+			run.FinishedAt = time.Now().UnixMilli()
+			run.NextAt = started + int64(value.Interval)*60_000
+			s.mu.Lock()
+			s.history[value.ID] = run
+			s.mu.Unlock()
+			s.persistHistory(ctx)
+			continue
+		}
 		targets := make([]target, 0, len(value.Servers))
 		seen := make(map[string]bool)
-		for _, uuid := range value.Servers {
-			address, addressErr := validAddress(current[uuid], value.Type)
-			if addressErr != nil {
-				run.Results = append(run.Results, result{UUID: uuid, Action: "error", Message: s.redact(addressErr.Error())})
-				continue
+		if value.Source == "manual" {
+			targets = append(targets, target{UUID: "manual", IP: value.ManualIP})
+		} else {
+			for _, uuid := range value.Servers {
+				address, addressErr := validAddress(current[uuid], value.Type)
+				if addressErr != nil {
+					run.Results = append(run.Results, result{UUID: uuid, Action: "error", Message: s.redact(addressErr.Error())})
+					continue
+				}
+				key := strings.ToLower(address)
+				if seen[key] {
+					run.Results = append(run.Results, result{UUID: uuid, Action: "error", Message: "多个来源节点上报了相同 IP，已跳过重复目标"})
+					continue
+				}
+				seen[key] = true
+				targets = append(targets, target{UUID: uuid, IP: address})
 			}
-			key := strings.ToLower(address)
-			if seen[key] {
-				run.Results = append(run.Results, result{UUID: uuid, Action: "error", Message: "多个来源节点上报了相同 IP，已跳过重复目标"})
-				continue
-			}
-			seen[key] = true
-			targets = append(targets, target{UUID: uuid, IP: address})
 		}
 		if value.Provider == "cloudflare" {
 			provider := s.cloudflare()
@@ -456,17 +509,23 @@ func (s *service) execute(rules []rule) {
 					run.Results = append(run.Results, result{UUID: item.UUID, Action: action, IP: item.IP})
 				}
 			}
-		} else if len(targets) == len(value.Servers) && len(targets) > 0 {
-			addresses := make([]string, 0, len(targets))
-			for _, item := range targets {
-				addresses = append(addresses, item.IP)
+		} else {
+			expectedTargets := len(value.Servers)
+			if value.Source == "manual" {
+				expectedTargets = 1
 			}
-			provider := newHuaweiProvider(s.client, s.configSnapshot().Huawei)
-			action, ips, syncErr := provider.sync(ctx, value, addresses)
-			if syncErr != nil {
-				run.Results = append(run.Results, result{Action: "error", Message: s.redact(syncErr.Error())})
-			} else {
-				run.Results = append(run.Results, result{Action: action, IPs: ips})
+			if len(targets) == expectedTargets && len(targets) > 0 {
+				addresses := make([]string, 0, len(targets))
+				for _, item := range targets {
+					addresses = append(addresses, item.IP)
+				}
+				provider := newHuaweiProvider(s.client, s.configSnapshot().Huawei)
+				action, ips, syncErr := provider.sync(ctx, value, addresses)
+				if syncErr != nil {
+					run.Results = append(run.Results, result{Action: "error", Message: s.redact(syncErr.Error())})
+				} else {
+					run.Results = append(run.Results, result{Action: action, IPs: ips})
+				}
 			}
 		}
 		run.FinishedAt = time.Now().UnixMilli()
@@ -483,9 +542,11 @@ func (s *service) execute(rules []rule) {
 		s.mu.Unlock()
 		s.persistHistory(ctx)
 	}
-	s.mu.Lock()
-	s.lastError = ""
-	s.mu.Unlock()
+	if nodeListError == nil {
+		s.mu.Lock()
+		s.lastError = ""
+		s.mu.Unlock()
+	}
 }
 
 type target struct {

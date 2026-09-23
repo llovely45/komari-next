@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/komari-monitor/komari/pkg/pluginprocess"
 )
 
 const (
 	pluginID      = "cloudflare-ddns"
-	pluginVersion = "2.2.0"
+	pluginVersion = "2.3.0"
 )
 
 func main() {
@@ -26,7 +27,7 @@ func main() {
 		"plugin:cloudflare-ddns:sync":        service.rpcSync,
 	}
 	for name, handler := range methods {
-		if err := client.RegisterRPC(name, handler); err != nil {
+		if err := client.RegisterRPC(name, protectRPC(service, name, handler)); err != nil {
 			fmt.Fprintln(os.Stderr, "register DDNS RPC:", err)
 			return
 		}
@@ -52,6 +53,20 @@ func main() {
 	go service.scheduleLoop(context.Background())
 	if err := client.Wait(); err != nil {
 		fmt.Fprintln(os.Stderr, "DDNS plugin stopped:", err)
+	}
+}
+
+func protectRPC(service *service, method string, handler pluginprocess.MessageHandler) pluginprocess.MessageHandler {
+	return func(ctx context.Context, message pluginprocess.Message) (payload []byte, failure *pluginprocess.PluginError) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				detail := fmt.Sprintf("%T", recovered)
+				fmt.Fprintf(os.Stderr, "DDNS RPC %s panicked: %s\n%s", method, detail, debug.Stack())
+				payload = nil
+				failure = pluginErr("internal_error", "DDNS 插件内部错误，请查看插件运行日志")
+			}
+		}()
+		return handler(ctx, message)
 	}
 }
 

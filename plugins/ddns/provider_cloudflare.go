@@ -218,7 +218,7 @@ func (p *cloudflareProvider) sync(ctx context.Context, value rule, uuid, address
 	if len(owned) == 1 {
 		record = &owned[0]
 	} else if len(unowned) > 0 {
-		if value.AdoptExisting && len(value.Servers) == 1 && len(unowned) == 1 && unowned[0].Comment == "" {
+		if value.AdoptExisting && (value.Source == "manual" || len(value.Servers) == 1) && len(unowned) == 1 && unowned[0].Comment == "" {
 			record = &unowned[0]
 		} else {
 			return "", errors.New("存在未由此规则管理的同类型 DNS 记录；请先检查记录，或开启单记录接管")
