@@ -200,6 +200,13 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 
 	// 核心逻辑：渲染 Index.html
 	serveIndex := func(c *gin.Context) {
+		// HTML contains content-hashed asset names. It must be revalidated on
+		// every navigation so a cached shell cannot keep requesting chunks from
+		// a previous deployment.
+		c.Header("Cache-Control", "no-store, max-age=0")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+
 		reqPath := c.Request.URL.Path
 		cfg := getConfig()
 
@@ -351,17 +358,22 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 
 		content, mimeType, exists := getFileContent(currentTheme, distPath)
 		if exists {
+			if reqPath == "/sw.js" || reqPath == "/registerSW.js" {
+				c.Header("Cache-Control", "no-store, max-age=0")
+			}
 			c.Data(http.StatusOK, mimeType, content)
 			return
 		}
 
-		// 如果资源不存在，且路径包含扩展名 (如 .js, .css, .png)，则返回 404
-		// 避免将 index.html 作为 js 文件返回导致 "Failed to fetch dynamically imported module"
-		//ext := filepath.Ext(reqPath)
-		//if ext != "" && ext != ".html" {
-		//	c.Status(http.StatusNotFound)
-		//	return
-		//}
+		// Missing static files must not fall through to the SPA shell. Returning
+		// index.html with HTTP 200 makes browsers report an opaque dynamic import
+		// failure instead of identifying the missing asset.
+		ext := filepath.Ext(reqPath)
+		if ext != "" && ext != ".html" {
+			c.Header("Cache-Control", "no-store, max-age=0")
+			c.Status(http.StatusNotFound)
+			return
+		}
 
 		// 路由 (如 /dashboard, /settings) -> 返回 index.html
 		serveIndex(c)
