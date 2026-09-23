@@ -173,7 +173,7 @@ public:* 和 common:* 的公开方法允许 guest；admin:* 要求 admin；Agent
 
 JavaScript 插件由 Goja 运行；Go 插件编译为 `wasip1/wasm`，由 Wazero 在受限 WASI 环境中运行。Go 插件通过版本化 JSON Lines 协议和 `pkg/pluginprocess` SDK 调用 manifest 声明的宿主 API，具备独立内存上限、心跳和崩溃重启。Go/WASI 插件可注册插件 RPC，并通过宿主代理访问受限 HTTPS 和插件私有存储；插件没有宿主文件系统挂载。启用权限发生变化的插件时，管理员 API 可能先返回 `requires_approval`。
 
-`admin:listClients` 等被插件批准使用的宿主 RPC 会经过 allowlist；DDNS 使用 `admin:listDDNSClients` 仅读取 UUID、名称、IPv4、IPv6 和分组。HTTPS 宿主代理仅连接公网 443 端口，拒绝私网/保留地址并禁止重定向。
+`admin:listClients` 等被插件批准使用的宿主 RPC 会经过 allowlist；DDNS 读取节点时，宿主只查询并交给插件 UUID、名称、IPv4、IPv6 和分组。HTTPS 宿主代理仅连接公网 443 端口，拒绝私网/保留地址并禁止重定向。
 
 ## 开发与验证
 
