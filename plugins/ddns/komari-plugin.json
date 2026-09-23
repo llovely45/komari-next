@@ -10,10 +10,10 @@
   },
   "author": "Komari Next",
   "version": "2.1.2",
-  "komari": ">=1.0.15",
+  "komari": ">=1.0.19",
   "runtime": "go-wasi",
   "entry": "plugin.wasm",
-  "entrySha256": "6f0c82502551a76cdbb674f178644eb71704686fc7c164ac20a78bb362375abb",
+  "entrySha256": "72700c3eaea644d1a220db5423b7e67e4ef0a49e2ea57de2f4b3183b1ff048cd",
   "rpcMethods": [
     "plugin:cloudflare-ddns:state",
     "plugin:cloudflare-ddns:clients",
@@ -22,7 +22,7 @@
     "plugin:cloudflare-ddns:sync"
   ],
   "goHostRPCMethods": [
-    "admin:listClients"
+    "admin:listDDNSClients"
   ],
   "icon": "icon.svg",
   "permissions": {

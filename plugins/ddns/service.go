@@ -132,7 +132,7 @@ func cloneHistory(source map[string]runStatus) map[string]runStatus {
 
 func (s *service) clients(ctx context.Context) ([]clientInfo, error) {
 	var rows []clientInfo
-	if err := s.client.CallKomariRPC(ctx, "admin:listClients", map[string]any{}, &rows); err != nil {
+	if err := s.client.CallKomariRPC(ctx, "admin:listDDNSClients", map[string]any{}, &rows); err != nil {
 		return nil, err
 	}
 	return rows, nil

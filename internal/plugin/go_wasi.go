@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
-	clientdb "github.com/komari-monitor/komari/database/clients"
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/internal/pluginprocess"
 	"github.com/komari-monitor/komari/pkg/rpc"
@@ -408,24 +407,6 @@ func (g *goWASIRuntime) handleHostCall(ctx context.Context, message pluginproces
 		meta := &rpc.ContextMeta{Permission: rpc.RoleAdmin, Principal: rpc.PrincipalFromRole(rpc.RoleAdmin)}
 		callCtx, cancel := context.WithTimeout(ctx, goWASIRequestTimeout(g.info.Permissions.TimeoutSeconds))
 		defer cancel()
-		if request.Method == "admin:listClients" {
-			rows, err := clientdb.GetAllDDNSClientInfo(callCtx)
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					return nil, pluginError("rpc_timeout", "context deadline exceeded while reading DDNS nodes")
-				}
-				return nil, pluginError("rpc_failed", "failed to list DDNS nodes")
-			}
-			data, err := json.Marshal(rows)
-			if err != nil {
-				return nil, pluginError("rpc_result_encode", "failed to encode DDNS client list")
-			}
-			data, err = sanitizeGoPluginClientList(data)
-			if err != nil {
-				return nil, pluginError("rpc_result_encode", "failed to sanitize DDNS client list")
-			}
-			return data, nil
-		}
 		response := rpc.CallWithContext(rpc.NewContextWithMeta(callCtx, meta), nil, request.Method, request.Params)
 		if response.Error != nil {
 			return nil, &pluginprocess.PluginError{Code: fmt.Sprintf("rpc_%d", response.Error.Code), Message: safePluginLog(response.Error.Message)}
@@ -434,7 +415,7 @@ func (g *goWASIRuntime) handleHostCall(ctx context.Context, message pluginproces
 		if err != nil {
 			return nil, pluginError("rpc_result_encode", "failed to encode Komari RPC result")
 		}
-		if request.Method == "admin:listClients" {
+		if request.Method == "admin:listClients" || request.Method == "admin:listDDNSClients" {
 			data, err = sanitizeGoPluginClientList(data)
 			if err != nil {
 				return nil, pluginError("rpc_result_encode", "failed to sanitize Komari client list")
