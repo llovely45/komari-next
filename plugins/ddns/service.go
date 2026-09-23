@@ -28,6 +28,11 @@ type service struct {
 	cf           *cloudflareProvider
 }
 
+type huaweiLinesInput struct {
+	Domain      string          `json:"domain"`
+	Credentials saveCredentials `json:"credentials"`
+}
+
 func newService(client *pluginprocess.Client) *service {
 	return &service{client: client, config: defaultConfig(), history: make(map[string]runStatus)}
 }
@@ -292,6 +297,47 @@ func (s *service) test(ctx context.Context, input testInput) (map[string]string,
 		return nil, err
 	}
 	return map[string]string{"message": "华为云国际站凭据有效，并且可以读取公网 DNS Zone。"}, nil
+}
+
+func (s *service) huaweiLines(ctx context.Context, input huaweiLinesInput) ([]huaweiLine, error) {
+	domain, err := normalizeDomain(input.Domain)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	if s.running || s.saving || s.testing {
+		s.mu.Unlock()
+		return nil, errors.New("已有同步或保存任务正在运行，请稍后重试")
+	}
+	s.testing = true
+	stored := s.config
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.testing = false
+		s.mu.Unlock()
+	}()
+
+	credentials := input.Credentials
+	value := huaweiCredentials{
+		AccessKey: chooseSecret(credentials.HuaweiAccessKey, stored.Huawei.AccessKey, true),
+		SecretKey: chooseSecret(credentials.HuaweiSecretKey, stored.Huawei.SecretKey, true),
+		Region:    stored.Huawei.Region,
+	}
+	if strings.TrimSpace(credentials.HuaweiRegion) != "" {
+		value.Region = strings.ToLower(strings.TrimSpace(credentials.HuaweiRegion))
+	}
+	if value.Region == "" {
+		value.Region = "ap-southeast-1"
+	}
+	if !validRegion.MatchString(value.Region) {
+		return nil, errors.New("华为云区域代码格式无效")
+	}
+	if value.AccessKey == "" || value.SecretKey == "" {
+		return nil, errors.New("请先填写华为云国际站的 Access Key 和 Secret Key")
+	}
+	provider := newHuaweiProvider(s.client, value)
+	return provider.listLines(ctx, domain)
 }
 
 func (s *service) start(id string, force bool) (bool, error) {

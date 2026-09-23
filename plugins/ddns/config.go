@@ -39,6 +39,7 @@ type rule struct {
 	Provider      string   `json:"provider"`
 	Domain        string   `json:"domain"`
 	Type          string   `json:"type"`
+	Line          string   `json:"line,omitempty"`
 	Interval      int      `json:"interval"`
 	Servers       []string `json:"servers"`
 	Enabled       bool     `json:"enabled"`
@@ -172,6 +173,9 @@ func normalizeConfig(input saveInput, previous config) (config, error) {
 			return config{}, err
 		}
 		key := value.Provider + "|" + value.Domain + "|" + value.Type
+		if value.Provider == "huaweicloud" {
+			key += "|" + value.Line
+		}
 		if ids[value.ID] {
 			return config{}, errors.New("规则 ID 重复")
 		}
@@ -258,6 +262,17 @@ func normalizeRule(raw, old rule, hasOld bool) (rule, error) {
 	}
 	if value.Type != "A" && value.Type != "AAAA" {
 		return rule{}, errors.New("记录类型只能是 A 或 AAAA")
+	}
+	if value.Provider == "huaweicloud" {
+		value.Line = strings.TrimSpace(value.Line)
+		if value.Line == "" {
+			value.Line = "default"
+		}
+		if len(value.Line) > 128 {
+			return rule{}, errors.New("华为云解析线路无效")
+		}
+	} else {
+		value.Line = ""
 	}
 	if !intervals[value.Interval] {
 		return rule{}, errors.New("更新间隔只能是 1、5、10、15、30 或 60 分钟")

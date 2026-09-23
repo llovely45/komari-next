@@ -11,18 +11,19 @@ import (
 
 const (
 	pluginID      = "cloudflare-ddns"
-	pluginVersion = "2.1.2"
+	pluginVersion = "2.2.0"
 )
 
 func main() {
 	client := pluginprocess.NewClient()
 	service := newService(client)
 	methods := map[string]pluginprocess.MessageHandler{
-		"plugin:cloudflare-ddns:state":   service.rpcState,
-		"plugin:cloudflare-ddns:clients": service.rpcClients,
-		"plugin:cloudflare-ddns:save":    service.rpcSave,
-		"plugin:cloudflare-ddns:test":    service.rpcTest,
-		"plugin:cloudflare-ddns:sync":    service.rpcSync,
+		"plugin:cloudflare-ddns:state":       service.rpcState,
+		"plugin:cloudflare-ddns:clients":     service.rpcClients,
+		"plugin:cloudflare-ddns:save":        service.rpcSave,
+		"plugin:cloudflare-ddns:test":        service.rpcTest,
+		"plugin:cloudflare-ddns:huaweiLines": service.rpcHuaweiLines,
+		"plugin:cloudflare-ddns:sync":        service.rpcSync,
 	}
 	for name, handler := range methods {
 		if err := client.RegisterRPC(name, handler); err != nil {
@@ -88,6 +89,18 @@ func (s *service) rpcTest(ctx context.Context, message pluginprocess.Message) ([
 		return nil, s.toPluginError(err)
 	}
 	return encodeResponse(result)
+}
+
+func (s *service) rpcHuaweiLines(ctx context.Context, message pluginprocess.Message) ([]byte, *pluginprocess.PluginError) {
+	var input huaweiLinesInput
+	if err := json.Unmarshal(message.Payload, &input); err != nil {
+		return nil, pluginErr("invalid_params", "华为云线路查询参数无效")
+	}
+	lines, err := s.huaweiLines(ctx, input)
+	if err != nil {
+		return nil, s.toPluginError(err)
+	}
+	return encodeResponse(lines)
 }
 
 func (s *service) rpcSync(ctx context.Context, message pluginprocess.Message) ([]byte, *pluginprocess.PluginError) {

@@ -78,6 +78,11 @@ type huaweiZone struct {
 	Name string `json:"name"`
 }
 
+type huaweiLine struct {
+	ID   string `json:"line"`
+	Name string `json:"line_name"`
+}
+
 func (p *huaweiProvider) listZones(ctx context.Context, name string) ([]huaweiZone, error) {
 	query := map[string]string{"type": "public", "limit": "100"}
 	if name != "" {
@@ -114,18 +119,69 @@ func (p *huaweiProvider) zoneFor(ctx context.Context, domain string) (string, er
 	return "", errors.New("当前华为云区域中没有找到该域名对应的公网 DNS Zone")
 }
 
+func (p *huaweiProvider) listLines(ctx context.Context, domain string) ([]huaweiLine, error) {
+	zone, err := p.zoneFor(ctx, domain)
+	if err != nil {
+		return nil, err
+	}
+	path := "/v2.1/zones/" + pathSegment(zone) + "/lines"
+	body, err := p.request(ctx, http.MethodGet, path, map[string]string{"limit": "500", "offset": "0"}, nil)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Lines []huaweiLine `json:"lines"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil || response.Lines == nil {
+		return nil, errors.New("华为云 DNS 解析线路列表格式无效")
+	}
+	lines := make([]huaweiLine, 0, len(response.Lines)+1)
+	hasDefault := false
+	for _, line := range response.Lines {
+		line.ID = strings.TrimSpace(line.ID)
+		line.Name = strings.TrimSpace(line.Name)
+		if line.ID == "" {
+			continue
+		}
+		if line.ID == "default" {
+			hasDefault = true
+			if line.Name == "" {
+				line.Name = "默认线路"
+			}
+		}
+		lines = append(lines, line)
+	}
+	if !hasDefault {
+		lines = append(lines, huaweiLine{ID: "default", Name: "默认线路"})
+	}
+	sort.Slice(lines, func(i, j int) bool {
+		if lines[i].ID == "default" || lines[j].ID == "default" {
+			return lines[i].ID == "default" && lines[j].ID != "default"
+		}
+		return lines[i].Name < lines[j].Name
+	})
+	return lines, nil
+}
+
 type huaweiRecordSet struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Type        string   `json:"type"`
+	Line        string   `json:"line"`
 	TTL         int      `json:"ttl"`
 	Records     []string `json:"records"`
 	Description string   `json:"description"`
 }
 
 func (p *huaweiProvider) listRecordSets(ctx context.Context, zone, domain string) ([]huaweiRecordSet, error) {
-	path := "/v2/zones/" + pathSegment(zone) + "/recordsets"
-	body, err := p.request(ctx, http.MethodGet, path, map[string]string{"limit": "500", "name": domain + "."}, nil)
+	path := "/v2.1/recordsets"
+	body, err := p.request(ctx, http.MethodGet, path, map[string]string{
+		"limit":       "500",
+		"name":        domain + ".",
+		"search_mode": "equal",
+		"zone_id":     zone,
+		"zone_type":   "public",
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +193,9 @@ func (p *huaweiProvider) listRecordSets(ctx context.Context, zone, domain string
 	}
 	result := make([]huaweiRecordSet, 0, len(response.RecordSets))
 	for _, value := range response.RecordSets {
+		if strings.TrimSpace(value.Line) == "" {
+			value.Line = "default"
+		}
 		if strings.EqualFold(strings.TrimSuffix(value.Name, "."), domain) {
 			result = append(result, value)
 		}
@@ -145,6 +204,10 @@ func (p *huaweiProvider) listRecordSets(ctx context.Context, zone, domain string
 }
 
 func (p *huaweiProvider) sync(ctx context.Context, value rule, addresses []string) (string, []string, error) {
+	line := strings.TrimSpace(value.Line)
+	if line == "" {
+		line = "default"
+	}
 	zone, err := p.zoneFor(ctx, value.Domain)
 	if err != nil {
 		return "", nil, err
@@ -161,7 +224,7 @@ func (p *huaweiProvider) sync(ctx context.Context, value rule, addresses []strin
 	matches := make([]huaweiRecordSet, 0)
 	owned := make([]huaweiRecordSet, 0)
 	for _, recordset := range recordsets {
-		if recordset.Type != value.Type {
+		if recordset.Type != value.Type || recordset.Line != line {
 			continue
 		}
 		matches = append(matches, recordset)
@@ -187,12 +250,13 @@ func (p *huaweiProvider) sync(ctx context.Context, value rule, addresses []strin
 	if recordset != nil && equalStringSlices(uniqueSorted(recordset.Records), addresses) && recordset.TTL == value.TTL && recordset.Description == marker {
 		return "unchanged", addresses, nil
 	}
-	payload := map[string]any{"name": value.Domain + ".", "type": value.Type, "ttl": value.TTL, "records": addresses, "description": marker}
-	path := "/v2/zones/" + pathSegment(zone) + "/recordsets"
+	payload := map[string]any{"name": value.Domain + ".", "type": value.Type, "line": line, "ttl": value.TTL, "records": addresses, "description": marker}
+	path := "/v2.1/zones/" + pathSegment(zone) + "/recordsets"
 	method := http.MethodPost
 	if recordset != nil {
 		path += "/" + pathSegment(recordset.ID)
 		method = http.MethodPut
+		delete(payload, "line")
 	}
 	if _, err := p.request(ctx, method, path, nil, payload); err != nil {
 		return "", nil, err

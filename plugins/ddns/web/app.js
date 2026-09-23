@@ -6,6 +6,9 @@ const DAY_NAMES = ["周日", "周一", "周二", "周三", "周四", "周五", "
 let state = null;
 let nodes = [];
 let nodesError = "";
+let huaweiLines = [{ line: "default", line_name: "默认线路" }];
+let huaweiLinesDomain = "";
+let loadingHuaweiLines = false;
 let rules = [];
 let editingId = "";
 let busy = false;
@@ -42,6 +45,25 @@ async function request(method, params) {
 
 function providerLabel(provider) {
   return provider === "huaweicloud" ? "华为云国际站" : "Cloudflare";
+}
+
+function normalizeDomainKey(value) {
+  return String(value || "").trim().toLowerCase().replace(/\.$/, "");
+}
+
+function huaweiLineName(id) {
+  const line = huaweiLines.find(value => value.line === (id || "default"));
+  return line ? line.line_name || line.line : (id === "default" || !id ? "默认线路" : id);
+}
+
+function drawHuaweiLines(selected) {
+  const value = selected || "default";
+  const options = huaweiLines.map(line => '<option value="' + escapeHTML(line.line) + '">' +
+    escapeHTML((line.line_name || line.line) + "（" + line.line + "）") + "</option>").join("");
+  const known = huaweiLines.some(line => line.line === value);
+  const saved = known ? "" : '<option value="' + escapeHTML(value) + '">已保存线路（' + escapeHTML(value) + "，请读取线路确认）</option>";
+  $("huawei-line").innerHTML = options + saved;
+  $("huawei-line").value = value;
 }
 
 function formatTime(value) {
@@ -112,7 +134,8 @@ function render() {
       '<div class="rule-main">' +
         '<div class="rule-title-wrap"><span class="provider-dot ' + (rule.provider === "huaweicloud" ? "hw" : "cf") + '"></span>' +
           '<div><h3>' + escapeHTML(rule.domain) + '</h3><p>' + escapeHTML(providerLabel(rule.provider)) +
-          ' · ' + escapeHTML(rule.type) + (rule.proxied ? ' · 橙云' : '') + '</p></div></div>' +
+          ' · ' + escapeHTML(rule.type) + (rule.provider === "huaweicloud" ? ' · ' + escapeHTML(huaweiLineName(rule.line)) : '') +
+          (rule.proxied ? ' · 橙云' : '') + '</p></div></div>' +
         '<div class="rule-meta"><span class="rule-status ' + outcome[1] + '"><i></i>' + outcome[0] + '</span>' +
           '<span>' + escapeHTML(serverNames.join("、")) + '</span>' +
           '<span>每 ' + escapeHTML(rule.interval) + ' 分钟</span>' +
@@ -128,6 +151,7 @@ function render() {
   }).join("");
   $("save-hint").textContent = state.storageError || "密钥和规则只在点击保存后写入服务端。";
   $("save-hint").className = state.storageError ? "save-error" : "";
+  $("load-huawei-lines").disabled = busy || loadingHuaweiLines;
 }
 
 async function refresh() {
@@ -189,6 +213,15 @@ function setEditor(rule) {
   $("rule-type").value = rule ? rule.type : "A";
   $("rule-interval").value = String(rule ? rule.interval : 5);
   $("rule-ttl").value = String(rule ? rule.ttl : 300);
+  const domainKey = normalizeDomainKey(rule && rule.domain);
+  if (domainKey && huaweiLinesDomain === domainKey) {
+    drawHuaweiLines(rule && rule.line || "default");
+  } else {
+    huaweiLines = [{ line: "default", line_name: "默认线路" }];
+    huaweiLinesDomain = "";
+    drawHuaweiLines(rule && rule.line || "default");
+  }
+  $("huawei-line-hint").textContent = "填写域名后读取该 DNS Zone 的可用线路；旧规则使用默认线路。";
   $("rule-enabled").checked = rule ? rule.enabled : true;
   $("rule-proxied").checked = rule ? rule.proxied : false;
   $("rule-adopt").checked = rule ? rule.adoptExisting : false;
@@ -208,10 +241,43 @@ function setEditor(rule) {
 function updateEditorFields() {
   const cloudflare = $("rule-provider").value === "cloudflare";
   $("proxy-option").hidden = !cloudflare;
+  $("huawei-line-field").hidden = cloudflare;
   if (!cloudflare) $("rule-proxied").checked = false;
   const enabled = $("schedule-enabled").checked;
   $("schedule-fields").classList.toggle("disabled", !enabled);
   $("schedule-fields").querySelectorAll("input").forEach(input => { input.disabled = !enabled; });
+}
+
+async function loadHuaweiLines() {
+  if (loadingHuaweiLines || busy) return;
+  const domain = $("rule-domain").value.trim();
+  if (!domain) return showNotice("请先填写域名，再读取华为云解析线路。", "error");
+  loadingHuaweiLines = true;
+  render();
+  try {
+    const lines = await request("plugin:cloudflare-ddns:huaweiLines", {
+      domain,
+      credentials: {
+        huaweiAccessKey: $("hw-ak").value.trim(),
+        huaweiSecretKey: $("hw-sk").value.trim(),
+        huaweiRegion: $("hw-region").value.trim()
+      }
+    });
+    const selected = $("huawei-line").value || "default";
+    huaweiLines = Array.isArray(lines) ? lines : [];
+    if (!huaweiLines.some(line => line.line === "default")) huaweiLines.unshift({ line: "default", line_name: "默认线路" });
+    huaweiLinesDomain = normalizeDomainKey(domain);
+    const keep = huaweiLines.some(line => line.line === selected) ? selected : "default";
+    drawHuaweiLines(keep);
+    $("huawei-line-hint").textContent = "已读取该域名 Zone 的 " + huaweiLines.length + " 条可用线路。";
+    if (keep !== selected) showNotice("当前保存的线路已不可用，已切换到默认线路，请确认后应用。", "info");
+    else showNotice("已读取华为云 DNS 线路。", "success");
+  } catch (error) {
+    showNotice(error.message, "error");
+  } finally {
+    loadingHuaweiLines = false;
+    render();
+  }
 }
 
 function updateCFFields() {
@@ -237,11 +303,19 @@ function applyRule() {
   if (!servers.length) return showNotice("至少选择一个来源节点。", "error");
   if ($("schedule-enabled").checked && !days.length) return showNotice("时段限制至少要选择一个星期。", "error");
   const existing = editingId ? rules.find(rule => rule.id === editingId) : null;
+  const provider = $("rule-provider").value;
+  const line = provider === "huaweicloud" ? ($("huawei-line").value || "default") : "";
+  const normalizedDomain = normalizeDomainKey(domain);
+  const duplicate = rules.some(item => item.id !== editingId && item.provider === provider &&
+    normalizeDomainKey(item.domain) === normalizedDomain && item.type === $("rule-type").value &&
+    (provider !== "huaweicloud" || (item.line || "default") === line));
+  if (duplicate) return showNotice("相同服务商、域名、记录类型和解析线路只能配置一条规则。", "error");
   const rule = {
     id: existing ? existing.id : newID(),
-    provider: $("rule-provider").value,
+    provider,
     domain,
     type: $("rule-type").value,
+    line,
     interval: Number($("rule-interval").value),
     servers,
     enabled: $("rule-enabled").checked,
@@ -367,8 +441,25 @@ $("cf-mode").addEventListener("change", () => {
   updateCFFields();
 });
 $("rule-provider").addEventListener("change", updateEditorFields);
+$("load-huawei-lines").addEventListener("click", loadHuaweiLines);
+$("rule-domain").addEventListener("input", () => {
+  const key = normalizeDomainKey($("rule-domain").value);
+  if (key === huaweiLinesDomain) return;
+  huaweiLines = [{ line: "default", line_name: "默认线路" }];
+  huaweiLinesDomain = "";
+  drawHuaweiLines("default");
+  $("huawei-line-hint").textContent = "域名已修改，请重新读取对应 Zone 的线路。";
+});
 $("schedule-enabled").addEventListener("change", updateEditorFields);
-$("hw-region").addEventListener("input", () => { $("hw-region").dataset.dirty = "1"; });
+$("hw-region").addEventListener("input", () => {
+  $("hw-region").dataset.dirty = "1";
+  if (!huaweiLinesDomain) return;
+  const selected = $("huawei-line").value || "default";
+  huaweiLines = [{ line: "default", line_name: "默认线路" }];
+  huaweiLinesDomain = "";
+  drawHuaweiLines(selected);
+  $("huawei-line-hint").textContent = "华为云区域已修改，请重新读取该 Zone 的线路。";
+});
 $("rules").addEventListener("click", event => {
   const edit = event.target.closest("[data-edit]");
   const syncButton = event.target.closest("[data-sync]");

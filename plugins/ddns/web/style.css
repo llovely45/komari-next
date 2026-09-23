@@ -125,6 +125,10 @@ h1 { margin: 1px 0 3px; font-size: 25px; line-height: 1.25; letter-spacing: -.02
 .editor-panel { margin-top: 16px; padding: 20px 21px 18px; scroll-margin-top: 12px; }
 .editor-heading { margin-bottom: 17px; }
 .editor-grid { display: grid; grid-template-columns: 1.1fr 1.5fr .9fr .9fr .7fr; gap: 11px; }
+.huawei-line-field { grid-column: 1 / -1; }
+.line-controls { display: flex; gap: 8px; min-width: 0; }
+.line-controls select { flex: 1; }
+.line-controls .button { flex: 0 0 auto; }
 .server-field { margin-top: 16px; }
 .field-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; }
 .server-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }

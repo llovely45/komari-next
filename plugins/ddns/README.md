@@ -10,7 +10,7 @@ Go 编写并编译为 Go 1.25 `wasip1/wasm` 模块，由 Komari 的 Wazero 宿�
 python3 scripts/package-ddns.py
 ```
 
-最低要求 Komari Next `1.0.15`。脚本编译 `plugins/ddns` 为 WASI 模块、更新 manifest 的 `entrySha256`，并生成 `dist/cloudflare-ddns-2.1.0.zip` 和 SHA-256 文件。上传 ZIP 后，在插件管理页批准插件申请的 Go RPC、插件 RPC 路由和 HTTPS 网络能力，再启用插件并打开「动态 DNS」管理页。插件 ID 沿用 `cloudflare-ddns`，升级会保留插件数据。
+最低要求 Komari Next `1.0.19`。脚本编译 `plugins/ddns` 为 WASI 模块、更新 manifest 的 `entrySha256`，并生成对应版本的 ZIP 和 SHA-256 文件。上传 ZIP 后，在插件管理页批准插件申请的 Go RPC、插件 RPC 路由和 HTTPS 网络能力，再启用插件并打开「动态 DNS」管理页。插件 ID 沿用 `cloudflare-ddns`，升级会保留插件数据。
 
 Go 插件没有宿主文件系统挂载；配置和运行状态通过宿主受限存储接口写入 `data/plugin-data/cloudflare-ddns`。宿主对每个插件限制单文件 2 MiB、存储总量 128 MiB，并拒绝路径穿越和符号链接。网络接口只允许访问公网 HTTPS 443，且不跟随 HTTP 重定向。读取节点时宿主只向插件提供 UUID、名称、IPv4、IPv6 和分组字段。
 
@@ -25,11 +25,11 @@ Go 插件没有宿主文件系统挂载；配置和运行状态通过宿主受�
 
 ## 解析规则
 
-每条规则设置服务商、完整域名、A / AAAA 类型、一个或多个来源节点、检查间隔和 TTL。一个服务商下同一域名和记录类型只能有一条规则。
+每条规则设置服务商、完整域名、A / AAAA 类型、一个或多个来源节点、检查间隔和 TTL。Cloudflare 同一域名和类型只能有一条规则；华为云按解析线路区分规则，所以同域名、同类型可以为不同线路分别配置。
 
 - A 使用节点保存的 IPv4；AAAA 使用保存的 IPv6。插件不访问外部 IP 查询网站。
 - Cloudflare 为每个不同来源节点维护一条带 `komari-ddns` 备注的记录。开启橙云时使用自动 TTL。
-- 华为云将多个来源节点地址写入同一个 DNS 记录集。
+- 华为云将多个来源节点地址写入同一线路的 DNS 记录集；编辑规则时可按域名读取该公网 Zone 当前可用的解析线路。
 - 插件每分钟检查启用规则；达到设定间隔并且处于时段内时才访问 DNS API。
 - 时段可以选择星期、跨午夜起止时间和固定 UTC 偏移。例如 UTC+08:00 填 `480`。起止时间相同表示所选星期全天生效。固定偏移不会自动切换夏令时。
 - 手动同步不受间隔和时段限制。
@@ -42,4 +42,4 @@ Go 插件没有宿主文件系统挂载；配置和运行状态通过宿主受�
 
 ## 数据迁移
 
-首次加载时会读取旧版 Cloudflare DDNS 的凭据、规则和同步状态；旧规则 ID 与 Cloudflare 归属备注保留。旧规则默认全天同步并使用自动 TTL。升级不会清除 `plugin-data/cloudflare-ddns`；卸载插件会按 Komari 插件管理器行为删除该目录。
+首次加载时会读取旧版 Cloudflare DDNS 的凭据、规则和同步状态；旧规则 ID 与 Cloudflare 归属备注保留。旧规则默认全天同步并使用自动 TTL，已有华为云规则的线路默认为 `default`。升级不会清除 `plugin-data/cloudflare-ddns`；卸载插件会按 Komari 插件管理器行为删除该目录。
