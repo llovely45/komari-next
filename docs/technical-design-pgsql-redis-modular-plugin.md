@@ -130,17 +130,17 @@ type Cache interface {
 
 用户、权限、插件审批状态和任务执行结果先不做长 TTL 缓存，避免一致性风险。
 
-## 5. Go 外部插件协议
+## 5. Go/WASI 插件协议
 
 ### 5.1 进程模型
 
 ~~~text
 komari-next
-  ├─ plugin-host: plugin-a
-  └─ plugin-host: plugin-b
+  ├─ Wazero: plugin-a.wasm
+  └─ Wazero: plugin-b.wasm
 ~~~
 
-后续 process-manager 阶段的每个插件独立进程将优先使用 Unix Socket；TCP/TLS 仅作为后续需要时的显式传输选项，不能改变协议版本和能力审批边界。本阶段的 `internal/pluginprocess` 只定义稳定的握手/消息数据和验证，不建立 socket、不定义 gRPC service，也不声称 JSON tags 等同于 Protobuf schema。下面是逻辑字段模型：
+Go 插件以 `GOOS=wasip1 GOARCH=wasm` 编译，由宿主内的 Wazero 实例执行。WASI 模块没有宿主文件系统挂载；所有宿主能力通过 `pkg/pluginprocess` 的 JSON Lines RPC 暴露，并同时受 manifest allowlist 和管理员审批约束。当前 framing 是 JSON Lines，不是 Protobuf 或 gRPC。
 
 ~~~text
 protocol_version
@@ -150,11 +150,11 @@ komari_api_version
 requested_capabilities
 ~~~
 
-后续 process-manager 阶段必须用 `.proto` 明确字段编号、service/method、消息 envelope 和握手响应（接受的协议版本、批准的能力或结构化拒绝原因）。版本不兼容或能力未批准时，插件不进入 Running 状态；这些传输与响应细节不属于本阶段的 wire-data/validation 包。
+首帧为握手，宿主验证协议版本、插件 ID/版本及能力集合；能力不符时以结构化拒绝响应结束启动。其后使用带 request ID 的消息 envelope 双向复用调用、事件和响应。协议变更必须显式升级 `ProtocolVersion`。
 
 ### 5.2 事件与调用
 
-逻辑消息分为三类；它们不是本阶段已经固化的 gRPC service 定义：
+消息分为三类：
 
 - Call：主进程调用插件方法。
 - Event：主进程批量推送节点、任务、指标等事件。
@@ -172,7 +172,7 @@ Installed -> Approved -> Starting -> Running
                               Stop / Disabled
 ~~~
 
-插件管理器需要记录 PID、协议版本、最近错误、重启次数和最后心跳时间。
+插件管理器记录运行状态和有界日志；宿主监控心跳并在模块退出或超时时按退避策略重启模块。
 
 ## 6. JavaScript 兼容
 
@@ -218,12 +218,6 @@ plugin_event_batch
 - Redis 命中率
 - goroutine 和 RSS 变化
 
-## 9. 本阶段实现边界
+## 9. 后续实现边界
 
-本阶段先提交可以独立测试的基础设施：模块注册表、PostgreSQL 连接适配、Redis
-Cache Port/实现及服务端生命周期接入、Go 插件稳定 wire data/validation
-类型和测试。Unix-socket framing、Protobuf `.proto` 字段编号、service/method、
-握手响应和插件进程管理必须在后续 process-manager 阶段推进；业务功能的完整迁移、
-Redis read-through 热点接入、SQLite 到 PostgreSQL 的数据切换和 Rust 外部服务
-评估也必须在这些接口稳定后按后续阶段推进。迁移不得在启动时静默执行，必须保留
-备份、进度、校验和回切能力，避免一次性重写。
+Go/WASI 插件宿主、版本化 JSON Lines 协议、SDK、能力审批和崩溃重启已实现。模块注册表、PostgreSQL 连接适配、Redis Cache Port/实现和服务端生命周期仍按独立计划推进；业务功能迁移、Redis read-through 热点接入、SQLite 到 PostgreSQL 的数据切换和 Rust 外部服务评估也属于后续工作。数据迁移必须保留备份、进度、校验和回切能力，避免启动时静默迁移或一次性重写。

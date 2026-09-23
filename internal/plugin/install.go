@@ -83,6 +83,12 @@ func InstallZip(zipPath string) (models.Plugin, error) {
 		_ = os.RemoveAll(dir)
 		return info, fmt.Errorf("plugin entry %s does not exist", info.Entry)
 	}
+	if info.Runtime == "go-wasi" {
+		if err := verifyEntrySHA256(filepath.Join(dir, info.Entry), info.EntrySHA256); err != nil {
+			_ = os.RemoveAll(dir)
+			return info, fmt.Errorf("verify Go/WASI plugin entry: %w", err)
+		}
+	}
 	for _, page := range info.Pages {
 		if _, err := os.Stat(filepath.Join(dir, page.File)); err != nil {
 			_ = os.RemoveAll(dir)

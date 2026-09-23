@@ -32,7 +32,7 @@ flowchart TD
     Runtime --> Metric
     Admin --> MainDB
     Admin --> Metric
-    Plugins[JavaScript plugin runtime] --> Router
+    Plugins[JavaScript and Go/WASI plugin runtimes] --> Router
     Plugins --> MainDB
 ~~~
 
@@ -49,7 +49,7 @@ flowchart TD
 | 控制面存储 | database/, database/dbcore/ | 用户、节点、任务、通知、插件配置、审计日志等持久化数据 |
 | 指标存储 | pkg/metric/, internal/metricstore/ | 共享 PostgreSQL 指标表的写入、聚合、rollup、保留和结构迁移 |
 | 缓存 | internal/cache/, internal/server/cache.go | 通过固定本地 Redis 缓存可丢失热点数据，不作为数据源 |
-| 插件运行时 | internal/plugin/, pkg/jsruntime/ | 加载 JavaScript 插件、权限审批、RPC、Hook、静态页面和配置 |
+| 插件运行时 | internal/plugin/, pkg/jsruntime/, pkg/pluginprocess/ | 加载 JavaScript 和 Go/WASI 插件，处理权限审批、RPC、Hook、静态页面和插件存储 |
 | 前端资源 | web/public/ | 将默认主题以压缩归档嵌入二进制，并提供主题/静态页面 |
 
 ## 请求路径
@@ -171,9 +171,9 @@ public:* 和 common:* 的公开方法允许 guest；admin:* 要求 admin；Agent
 
 ## 插件边界
 
-当前运行时主要是 JavaScript 插件：插件通过 manifest 声明权限，使用 Goja 运行时，并可注册 RPC、定时任务、HTTP/HTML/WebSocket Hook 和管理/公开页面。启用权限发生变化的插件时，管理员 API 可能先返回 requires_approval。
+JavaScript 插件由 Goja 运行；Go 插件编译为 `wasip1/wasm`，由 Wazero 在受限 WASI 环境中运行。Go 插件通过版本化 JSON Lines 协议和 `pkg/pluginprocess` SDK 调用 manifest 声明的宿主 API，具备独立内存上限、心跳和崩溃重启。Go/WASI 插件可注册插件 RPC，并通过宿主代理访问受限 HTTPS 和插件私有存储；插件没有宿主文件系统挂载。启用权限发生变化的插件时，管理员 API 可能先返回 `requires_approval`。
 
-internal/pluginprocess/ 当前提供外部 Go 插件协议的数据结构和校验基础；Unix Socket framing、Protobuf 字段编号、完整进程管理和独立崩溃隔离仍属于演进设计，不应在当前实现上假设已经可用。
+`admin:listClients` 等被插件批准使用的宿主 RPC 会经过 allowlist；节点列表交给 Go 插件前仅保留 UUID、名称、IPv4、IPv6 和分组。HTTPS 宿主代理仅连接公网 443 端口，拒绝私网/保留地址并禁止重定向。
 
 ## 开发与验证
 

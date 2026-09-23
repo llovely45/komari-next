@@ -7,18 +7,22 @@ package models
 // backend passes the value through and the frontend resolves it against the
 // current locale.
 type Plugin struct {
-	Name          any               `json:"name"`
-	Short         string            `json:"short"` // directory name under data/plugin
-	Description   any               `json:"description"`
-	Author        any               `json:"author"`
-	Version       string            `json:"version"`
-	URL           string            `json:"url"`
-	Icon          string            `json:"icon"`
-	Komari        string            `json:"komari"` // supported server version constraint, e.g. ">=0.0.1"
-	Entry         string            `json:"entry"`  // entry script, defaults to "script.js"
-	Permissions   PluginPermissions `json:"permissions"`
-	Configuration Configuration     `json:"configuration"`   // declared config items, same shape as themes
-	Pages         []PluginPage      `json:"pages,omitempty"` // injected admin pages
+	Name             any               `json:"name"`
+	Short            string            `json:"short"` // directory name under data/plugin
+	Description      any               `json:"description"`
+	Author           any               `json:"author"`
+	Version          string            `json:"version"`
+	URL              string            `json:"url"`
+	Icon             string            `json:"icon"`
+	Komari           string            `json:"komari"`            // supported server version constraint, e.g. ">=0.0.1"
+	Runtime          string            `json:"runtime,omitempty"` // "javascript" (default) or "go-wasi"
+	Entry            string            `json:"entry"`             // runtime entry: script.js or a WASI module
+	EntrySHA256      string            `json:"entrySha256,omitempty"`
+	RPCMethods       []string          `json:"rpcMethods,omitempty"`
+	GoHostRPCMethods []string          `json:"goHostRPCMethods,omitempty"`
+	Permissions      PluginPermissions `json:"permissions"`
+	Configuration    Configuration     `json:"configuration"`   // declared config items, same shape as themes
+	Pages            []PluginPage      `json:"pages,omitempty"` // injected admin pages
 }
 
 // PluginPermissions declares the plugin capabilities that require admin
@@ -30,17 +34,18 @@ type Plugin struct {
 // plugin-owned RPC methods (server.registerRPC), and reading/writing files
 // inside the plugin directory.
 type PluginPermissions struct {
-	Node                bool  `json:"node"`                // Node.js compatibility modules (runtime setting, not approval-relevant)
-	AllowSystemRPC      bool  `json:"allowSystemRPC"`      // server.call: call system RPC methods with admin authority
-	AllowRoutes         bool  `json:"allowRoutes"`         // server.route: register HTTP routes on the host engine
-	AllowHooks          bool  `json:"allowHooks"`          // server.hook: modify HTTP requests/responses and intercept WebSocket connections/frames
-	AllowHTMLInject     bool  `json:"allowHTMLInject"`     // server.injectHTML: embed CSS/JS into every HTML response
-	AllowExec           bool  `json:"allowExec"`           // child_process: execute child processes
-	AllowListen         bool  `json:"allowListen"`         // net/http servers: listen on local ports
-	AllowAllFileAccess  bool  `json:"allowAllFileAccess"`  // access files outside the plugin directory
-	MaxHTTPBodyBytes    int64 `json:"maxHTTPBodyBytes"`    // runtime limit, not approval-relevant
-	MaxChildOutputBytes int   `json:"maxChildOutputBytes"` // runtime limit, not approval-relevant
-	TimeoutSeconds      int   `json:"timeout"`             // per-turn execution timeout in seconds, not approval-relevant
+	Node                bool     `json:"node"`                     // Node.js compatibility modules (runtime setting, not approval-relevant)
+	AllowSystemRPC      bool     `json:"allowSystemRPC"`           // server.call: call system RPC methods with admin authority
+	AllowRoutes         bool     `json:"allowRoutes"`              // server.route: register HTTP routes on the host engine
+	AllowHooks          bool     `json:"allowHooks"`               // server.hook: modify HTTP requests/responses and intercept WebSocket connections/frames
+	AllowHTMLInject     bool     `json:"allowHTMLInject"`          // server.injectHTML: embed CSS/JS into every HTML response
+	AllowExec           bool     `json:"allowExec"`                // child_process: execute child processes
+	AllowListen         bool     `json:"allowListen"`              // net/http servers: listen on local ports
+	AllowAllFileAccess  bool     `json:"allowAllFileAccess"`       // access files outside the plugin directory
+	MaxHTTPBodyBytes    int64    `json:"maxHTTPBodyBytes"`         // runtime limit, not approval-relevant
+	MaxChildOutputBytes int      `json:"maxChildOutputBytes"`      // runtime limit, not approval-relevant
+	TimeoutSeconds      int      `json:"timeout"`                  // per-turn execution timeout in seconds, not approval-relevant
+	GoCapabilities      []string `json:"goCapabilities,omitempty"` // approved Go/WASI host APIs: rpc, routes, network
 }
 
 // PageVisibility controls who can reach a plugin page.

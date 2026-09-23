@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>动态 DNS</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="hero-mark" aria-hidden="true">↻</div>
+      <div class="hero-copy">
+        <p class="eyebrow">KOMARI PLUGIN</p>
+        <h1>动态 DNS</h1>
+        <p class="subtitle">用 Komari 节点上报的地址更新 Cloudflare 或华为云国际站解析。</p>
+      </div>
+      <div class="hero-actions">
+        <span id="run-state" class="state-pill"><i></i>加载中</span>
+        <button id="sync-all" class="button button-primary" type="button">立即同步全部</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" role="status" hidden></div>
+
+    <section class="provider-grid">
+      <article class="panel provider-card">
+        <div class="panel-heading">
+          <div><span class="provider-kicker">PROVIDER 01</span><h2>Cloudflare</h2></div>
+          <span id="cf-credential-state" class="badge">未配置</span>
+        </div>
+        <label class="field auth-mode-field">
+          <span>认证方式</span>
+          <select id="cf-mode"><option value="token">API Token（推荐）</option><option value="global">邮箱 + Global API Key</option></select>
+        </label>
+        <label id="cf-token-field" class="field cf-auth-field">
+          <span>API Token</span>
+          <input id="cf-token" type="password" autocomplete="new-password" placeholder="Zone Read、DNS Read、DNS Edit">
+          <small>需要 Zone Read、DNS Read 和 DNS Edit。留空会保留现有 Token。</small>
+        </label>
+        <div id="cf-global-fields" class="field-grid cf-auth-field" hidden>
+          <label class="field"><span>Cloudflare 账户邮箱</span><input id="cf-email" type="email" autocomplete="off" placeholder="you@example.com"></label>
+          <label class="field"><span>Global API Key</span><input id="cf-key" type="password" autocomplete="new-password" placeholder="留空保持已保存的 Key"></label>
+        </div>
+        <div class="provider-actions">
+          <label class="check-row danger"><input id="cf-clear" type="checkbox"><span>清除已保存的 Cloudflare 凭据</span></label>
+          <button id="test-cf" class="button button-muted" type="button">验证凭据</button>
+        </div>
+      </article>
+
+      <article class="panel provider-card">
+        <div class="panel-heading">
+          <div><span class="provider-kicker">PROVIDER 02</span><h2>华为云国际站</h2></div>
+          <span id="hw-credential-state" class="badge">未配置</span>
+        </div>
+        <div class="field-grid">
+          <label class="field">
+            <span>Access Key</span>
+            <input id="hw-ak" type="password" autocomplete="new-password" placeholder="华为云国际站 AK">
+          </label>
+          <label class="field">
+            <span>Secret Key</span>
+            <input id="hw-sk" type="password" autocomplete="new-password" placeholder="华为云国际站 SK">
+          </label>
+        </div>
+        <label class="field region-field">
+          <span>DNS Zone 所在区域</span>
+          <input id="hw-region" type="text" value="ap-southeast-1" maxlength="32" spellcheck="false">
+          <small>填写区域代码，例如 ap-southeast-1。凭据不会回传到页面。</small>
+        </label>
+        <div class="provider-actions">
+          <label class="check-row danger"><input id="hw-clear" type="checkbox"><span>清除已保存的 AK/SK</span></label>
+          <button id="test-hw" class="button button-muted" type="button">验证凭据</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel rules-panel">
+      <div class="section-heading">
+        <div><span class="provider-kicker">DNS RULES</span><h2>解析规则 <span id="rule-count" class="count">0</span></h2>
+          <p>一个域名和记录类型对应一条规则；多个来源节点会写入多个地址。</p></div>
+        <button id="add-rule" class="button button-muted" type="button"><b>＋</b> 添加规则</button>
+      </div>
+      <div id="rules" class="rules-list"></div>
+      <div id="empty" class="empty-state" hidden>
+        <div class="empty-icon">⌁</div><h3>还没有 DDNS 规则</h3>
+        <p>添加一条规则，选择 DNS 服务商、域名和来源节点。</p>
+        <button id="add-first" class="button button-primary" type="button">创建第一条规则</button>
+      </div>
+      <div class="save-footer">
+        <span id="save-hint">密钥和规则只在点击保存后写入服务端。</span>
+        <button id="save" class="button button-primary" type="button">保存设置</button>
+      </div>
+    </section>
+
+    <section id="editor" class="panel editor-panel" hidden>
+      <div class="section-heading editor-heading">
+        <div><span class="provider-kicker">RULE EDITOR</span><h2 id="editor-title">添加解析规则</h2></div>
+        <button id="close-editor" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="editor-grid">
+        <label class="field"><span>DNS 服务商</span><select id="rule-provider"><option value="cloudflare">Cloudflare</option><option value="huaweicloud">华为云国际站</option></select></label>
+        <label class="field"><span>域名</span><input id="rule-domain" type="text" placeholder="home.example.com" maxlength="253" spellcheck="false"></label>
+        <label class="field"><span>记录类型</span><select id="rule-type"><option value="A">A · IPv4</option><option value="AAAA">AAAA · IPv6</option></select></label>
+        <label class="field"><span>检查间隔</span><select id="rule-interval"><option value="1">每 1 分钟</option><option value="5" selected>每 5 分钟</option><option value="10">每 10 分钟</option><option value="15">每 15 分钟</option><option value="30">每 30 分钟</option><option value="60">每 60 分钟</option></select></label>
+        <label class="field"><span>TTL（秒）</span><input id="rule-ttl" type="number" min="1" max="86400" step="60" value="300"><small>Cloudflare 填 1 表示自动；华为云有效范围为 60–86400 秒。</small></label>
+      </div>
+      <div class="field server-field">
+        <div class="field-label"><span>来源节点</span><small>只使用节点当前保存的 IPv4 / IPv6 地址。</small></div>
+        <div id="server-list" class="server-list"></div>
+      </div>
+      <div class="option-row">
+        <label class="check-row"><input id="rule-enabled" type="checkbox" checked><span>启用此规则</span></label>
+        <label id="proxy-option" class="check-row"><input id="rule-proxied" type="checkbox"><span>Cloudflare 代理（橙云）</span></label>
+        <label class="check-row"><input id="rule-adopt" type="checkbox"><span>接管唯一且无备注的已有记录</span></label>
+      </div>
+      <div class="schedule-box">
+        <div class="schedule-top">
+          <label class="check-row"><input id="schedule-enabled" type="checkbox"><span class="schedule-title">限制每日同步时段</span></label>
+          <span class="schedule-note">手动同步不受时段限制</span>
+        </div>
+        <div id="schedule-fields" class="schedule-fields">
+          <div class="time-row">
+            <label class="field"><span>开始</span><input id="schedule-start" type="time" value="00:00"></label>
+            <span class="time-separator">至</span>
+            <label class="field"><span>结束</span><input id="schedule-end" type="time" value="23:59"></label>
+            <label class="field offset-field"><span>UTC 偏移（分钟）</span><input id="schedule-offset" type="number" min="-720" max="840" step="15" value="480"></label>
+          </div>
+          <div class="days-row"><span>星期</span><div id="weekdays" class="weekday-list"></div></div>
+          <small class="field-help">例如 UTC+08:00 填 480；跨午夜时段支持填写 22:00 至 06:00。起止时间相同时表示所选星期全天生效。</small>
+        </div>
+      </div>
+      <div class="editor-footer">
+        <button id="delete-rule" class="button button-danger" type="button" hidden>删除规则</button>
+        <div class="editor-spacer"></div>
+        <button id="cancel-editor" class="button button-muted" type="button">取消</button>
+        <button id="apply-rule" class="button button-primary" type="button">应用规则</button>
+      </div>
+    </section>
+
+    <section class="panel notes-panel">
+      <div class="notes-mark">i</div>
+      <div><h2>运行说明</h2>
+        <p>插件每分钟检查一次规则，到达更新间隔且处于设定时段时才会同步。A / AAAA 地址来自 Komari 节点列表，不会通过第三方网站探测服务器出口 IP。</p>
+        <p>已有同名记录默认不会覆盖；删除规则或停用插件不会删除云端解析。华为云区域应选择该公网 DNS Zone 所在的国际站区域。所有时段采用规则指定的固定 UTC 偏移，不自动切换夏令时。</p>
+      </div>
+    </section>
+    <footer>Komari Next · DDNS 2.1.0</footer>
+  </main>
+</body>
+</html>

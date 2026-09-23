@@ -1,0 +1,47 @@
+{
+  "name": {
+    "zh_CN": "动态 DNS",
+    "en": "Dynamic DNS"
+  },
+  "short": "cloudflare-ddns",
+  "description": {
+    "zh_CN": "从 Komari 节点读取 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS。",
+    "en": "Update Cloudflare or Huawei Cloud International DNS records from Komari node addresses."
+  },
+  "author": "Komari Next",
+  "version": "2.1.0",
+  "komari": ">=1.0.15",
+  "runtime": "go-wasi",
+  "entry": "plugin.wasm",
+  "entrySha256": "8385ae41e5df90ce1943cf42ac2fd5ea87e7e3bebe52a827342d8ca009577810",
+  "rpcMethods": [
+    "plugin:cloudflare-ddns:state",
+    "plugin:cloudflare-ddns:clients",
+    "plugin:cloudflare-ddns:save",
+    "plugin:cloudflare-ddns:test",
+    "plugin:cloudflare-ddns:sync"
+  ],
+  "goHostRPCMethods": [
+    "admin:listClients"
+  ],
+  "icon": "icon.svg",
+  "permissions": {
+    "goCapabilities": [
+      "rpc",
+      "routes",
+      "network"
+    ]
+  },
+  "pages": [
+    {
+      "file": "web/index.html",
+      "title": {
+        "zh_CN": "动态 DNS",
+        "en": "Dynamic DNS"
+      },
+      "icon": "icon.svg",
+      "type": "iframe",
+      "visibility": "admin"
+    }
+  ]
+}

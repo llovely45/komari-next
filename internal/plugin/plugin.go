@@ -1,12 +1,9 @@
 // Package plugin manages komari-next plugins: ZIP packages with a
-// komari-plugin.json manifest, mirroring the theme package format. A plugin
-// runs in its own jsruntime instance confined to its data/plugin/<short>
-// directory, plus its long-term data directory data/plugin-data/<short>
-// exposed as __storageDir__ (which survives plugin updates), declares runtime
-// permissions in its manifest, and receives the host-injected "server" module
-// (server.route / server.call / server.hook, whose ws kinds can intercept
-// WebSocket connections and frames). Plugins run with admin authority inside
-// the system.
+// komari-plugin.json manifest, mirroring the theme package format. JavaScript
+// plugins run in confined Goja instances; Go plugins run as Wazero WASI modules
+// without a host filesystem mount. Both use manifest-declared permissions and
+// plugin RPCs, and JavaScript plugins additionally receive the host-injected
+// server module for routes, hooks, cron jobs and RPC calls.
 //
 // Lifecycle: plugins are installed as directories under DataDir. The
 // persisted state file (state.json) records which plugins are enabled, which
@@ -117,8 +114,10 @@ type Instance struct {
 	info       models.Plugin
 	dir        string
 	runtime    *jsruntime.Runtime
+	goWASI     *goWASIRuntime
 	host       *jsruntime.Host
 	handlers   map[string]goja.Callable // "METHOD path" -> current route handler
+	goRPCs     map[string]bool
 	statics    map[string]*staticConfig // mount path -> static folder config
 	rpcMethods map[string]goja.Callable // registered RPC method -> JS handler
 	cronJobs   []string                 // scheduler job names, removed on unload
@@ -252,6 +251,9 @@ func (m *Manager) load(short string) error {
 	if err := CheckKomariVersion(info.Komari); err != nil {
 		return err
 	}
+	if info.Runtime == "go-wasi" {
+		return m.loadGoWASI(short, dir, info)
+	}
 	script, err := os.ReadFile(filepath.Join(dir, info.Entry))
 	if err != nil {
 		return fmt.Errorf("read plugin entry %s: %w", info.Entry, err)
@@ -261,7 +263,7 @@ func (m *Manager) load(short string) error {
 	logs.Reset()
 	_, _ = logs.Write([]byte("[plugin] loading " + short + "\n"))
 
-	inst := &Instance{info: info, dir: dir, handlers: make(map[string]goja.Callable), statics: make(map[string]*staticConfig)}
+	inst := &Instance{info: info, dir: dir, handlers: make(map[string]goja.Callable), statics: make(map[string]*staticConfig), goRPCs: make(map[string]bool)}
 	m.mu.Lock()
 	if _, ok := m.instances[short]; ok {
 		m.mu.Unlock()
@@ -328,8 +330,8 @@ func (m *Manager) load(short string) error {
 // unload behavior. The caller must not hold any Manager lock.
 func (m *Manager) dropInstance(short string, inst *Instance) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.instances[short] != inst {
+		m.mu.Unlock()
 		return // replaced by a newer load or already unloaded
 	}
 	delete(m.instances, short)
@@ -337,16 +339,26 @@ func (m *Manager) dropInstance(short string, inst *Instance) {
 	for method := range inst.rpcMethods {
 		rpc.Unregister(method)
 	}
+	for method := range inst.goRPCs {
+		rpc.Unregister(method)
+	}
 	removeCronJobs(inst.cronJobs)
+	goRuntime := inst.goWASI
+	inst.goWASI = nil
 	inst.runtime = nil
 	inst.host = nil
 	clear(inst.handlers)
 	clear(inst.statics)
 	clear(inst.rpcMethods)
+	clear(inst.goRPCs)
 	inst.cronJobs = nil
 	inst.mu.Unlock()
 	m.removeHooksLocked(short)
 	m.removeInjectsLocked(short)
+	m.mu.Unlock()
+	if goRuntime != nil {
+		goRuntime.Close()
+	}
 }
 
 // removeCronJobs cancels and forgets the scheduler jobs of one plugin load.
@@ -376,6 +388,7 @@ func (m *Manager) unload(short string) error {
 
 	inst.mu.RLock()
 	rt := inst.runtime
+	goRuntime := inst.goWASI
 	inst.mu.RUnlock()
 	var unloadErr error
 	if rt != nil {
@@ -390,12 +403,18 @@ func (m *Manager) unload(short string) error {
 	for method := range inst.rpcMethods {
 		rpc.Unregister(method)
 	}
+	for method := range inst.goRPCs {
+		rpc.Unregister(method)
+	}
 	removeCronJobs(inst.cronJobs)
+	goRuntime = inst.goWASI
+	inst.goWASI = nil
 	inst.runtime = nil
 	inst.host = nil
 	clear(inst.handlers)
 	clear(inst.statics)
 	clear(inst.rpcMethods)
+	clear(inst.goRPCs)
 	inst.cronJobs = nil
 	inst.mu.Unlock()
 	m.removeHooksLocked(short)
@@ -403,6 +422,9 @@ func (m *Manager) unload(short string) error {
 	m.mu.Unlock()
 	if rt != nil {
 		rt.Close()
+	}
+	if goRuntime != nil {
+		goRuntime.Close()
 	}
 	_, _ = m.logStore(short).Write([]byte("[plugin] unloaded " + short + "\n"))
 	return unloadErr
@@ -449,7 +471,7 @@ func (m *Manager) setEnabled(short string, enabled, approved bool) error {
 		return nil
 	}
 
-	hash := approvalPermissionsHash(info.Permissions)
+	hash := approvalManifestHash(info)
 	st := m.stateStore().get(short)
 	if permissionsRequireApproval(info.Permissions) && st.ApprovedPermissionsHash != hash {
 		if !approved {
@@ -494,7 +516,7 @@ func (m *Manager) loadAll() error {
 			continue
 		}
 		if permissionsRequireApproval(info.Permissions) &&
-			st.ApprovedPermissionsHash != approvalPermissionsHash(info.Permissions) {
+			st.ApprovedPermissionsHash != approvalManifestHash(info) {
 			errs = append(errs, m.disableWithError(short, st, ErrPermissionApprovalRequired))
 			continue
 		}
@@ -516,7 +538,7 @@ func (m *Manager) restartPlugin(short string) error {
 		return m.disableWithError(short, st, err)
 	}
 	if permissionsRequireApproval(info.Permissions) &&
-		st.ApprovedPermissionsHash != approvalPermissionsHash(info.Permissions) {
+		st.ApprovedPermissionsHash != approvalManifestHash(info) {
 		return m.disableWithError(short, st, ErrPermissionApprovalRequired)
 	}
 	if err := m.load(short); err != nil {
@@ -563,10 +585,19 @@ func (m *Manager) list() []Info {
 			continue // mirror the theme list: skip unreadable entries
 		}
 		st := m.stateStore().get(short)
+		instance := m.instanceFor(short)
+		running := instance != nil
+		if instance != nil {
+			instance.mu.RLock()
+			if instance.info.Runtime == "go-wasi" {
+				running = instance.goWASI != nil && instance.goWASI.Running()
+			}
+			instance.mu.RUnlock()
+		}
 		infos = append(infos, Info{
 			Plugin:    info,
 			Enabled:   st.Enabled,
-			Running:   m.instanceFor(short) != nil,
+			Running:   running,
 			LastError: st.LastError,
 		})
 	}
@@ -754,7 +785,7 @@ func validShort(short string) bool {
 // without an approval step.
 func permissionsRequireApproval(p models.PluginPermissions) bool {
 	return p.AllowSystemRPC || p.AllowRoutes || p.AllowHooks || p.AllowHTMLInject ||
-		p.AllowExec || p.AllowListen || p.AllowAllFileAccess
+		p.AllowExec || p.AllowListen || p.AllowAllFileAccess || len(p.GoCapabilities) > 0
 }
 
 // approvalPermissionsHash canonicalizes the approval-relevant permissions so
@@ -762,6 +793,8 @@ func permissionsRequireApproval(p models.PluginPermissions) bool {
 // node modules, resource limits and the execution timeout are granted by
 // default and do not participate in the approval hash.
 func approvalPermissionsHash(p models.PluginPermissions) string {
+	goCapabilities := append([]string(nil), p.GoCapabilities...)
+	sort.Strings(goCapabilities)
 	data, _ := json.Marshal(models.PluginPermissions{
 		AllowSystemRPC:     p.AllowSystemRPC,
 		AllowRoutes:        p.AllowRoutes,
@@ -770,7 +803,23 @@ func approvalPermissionsHash(p models.PluginPermissions) string {
 		AllowExec:          p.AllowExec,
 		AllowListen:        p.AllowListen,
 		AllowAllFileAccess: p.AllowAllFileAccess,
+		GoCapabilities:     goCapabilities,
 	})
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func approvalManifestHash(info models.Plugin) string {
+	permissionsHash := approvalPermissionsHash(info.Permissions)
+	if info.Runtime != "go-wasi" {
+		return permissionsHash
+	}
+	hostMethods := append([]string(nil), info.GoHostRPCMethods...)
+	sort.Strings(hostMethods)
+	data, _ := json.Marshal(struct {
+		PermissionsHash string   `json:"permissions_hash"`
+		HostRPCMethods  []string `json:"host_rpc_methods"`
+	}{PermissionsHash: permissionsHash, HostRPCMethods: hostMethods})
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }

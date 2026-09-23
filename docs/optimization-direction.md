@@ -44,9 +44,9 @@ HTTP / WebSocket / JSON-RPC
               │
    PostgreSQL ─┴─ Metric Store ─ Redis
 
-Third-party Go Plugin
+Go/WASI Plugin
               │
-       Unix Socket / gRPC
+      Wazero / JSON Lines
               │
           Plugin Host
 
@@ -73,7 +73,7 @@ Register -> ResolveDependencies -> Init -> Start -> Running
 
 ### Go 外部插件
 
-第三方 Go 插件编译为独立可执行文件，目标是通过 Unix Socket 上的 Protobuf/gRPC 协议接入；TCP/TLS 仅作为后续需要时的显式传输选项。首个实现切片的 `internal/pluginprocess` 只提供稳定的 wire data 和验证逻辑，不固化 Unix-socket framing、Protobuf 字段编号、service/method 或握手响应 envelope；这些属于后续 process-manager 阶段。插件不能获得主进程的 gorm.DB、文件系统根目录或管理员凭据，只能获得 manifest 声明且用户批准的 Host API。
+Go 插件编译为 WASI 模块并由 Wazero 执行。插件不能获得主进程的 gorm.DB、宿主文件系统根目录或管理员凭据，只能获得 manifest 声明、allowlist 允许且用户批准的 Host API。宿主 HTTPS 接口限制公网 443 并拒绝重定向；插件存储限制在各自私有目录。
 
 不采用 Go plugin.Open 作为通用插件机制，因为它依赖精确的 Go 工具链和平台，难以安全卸载，也会把插件崩溃带入主进程。
 
@@ -124,7 +124,7 @@ Redis 是加速层，不是数据源：
 - 模块注册和生命周期骨架。
 - 主数据库 PostgreSQL 连接适配。
 - Redis Cache Port、Redis 实现和当前服务端生命周期接入；外置 Redis 配置作为后续兼容性设计。
-- Go 外部插件的 `internal/pluginprocess` 稳定 wire data 和验证逻辑；Unix-socket framing、Protobuf 字段编号、service/method 和握手响应 envelope 留到后续 process-manager 阶段。
+- Go/WASI 插件通过 Wazero、JSON Lines SDK、能力审批和受限宿主 API 运行；更多插件能力仍按业务需要逐步迁移。
 - 文档、单元测试和兼容性说明。
 
 ### Phase 2：业务迁移
