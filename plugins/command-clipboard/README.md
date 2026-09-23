@@ -5,6 +5,7 @@
 ## 兼容要求
 
 - Komari Next 后端包含 `GET /api/admin/terminal/sessions` 和 `POST /api/admin/terminal/sessions/:request_id/input` 两个通用终端接口。
+- 最低要求 Komari Next `1.0.12`；该版本开始包含终端输入接口。
 - 已登录管理员至少打开一个已连接的终端会话。
 - 插件继续使用现有 `/api/admin/clipboard` 接口管理片段。
 

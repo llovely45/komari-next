@@ -9,8 +9,8 @@
     "en": "Save, manage, and send reusable command snippets from the terminal sidebar."
   },
   "author": "Komari Next",
-  "version": "1.0.2",
-  "komari": "",
+  "version": "1.0.5",
+  "komari": ">=1.0.12",
   "entry": "script.js",
   "permissions": {
     "node": true,

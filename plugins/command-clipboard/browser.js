@@ -2,10 +2,21 @@
   "use strict";
 
   const ROOT_ID = "komari-command-clipboard-root";
+  const COMPACT_MODE_KEY = "komari-command-clipboard.compact-mode";
+  function getInitialCompactMode() {
+    try {
+      return window.localStorage.getItem(COMPACT_MODE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  }
+
   const state = {
     commands: [],
     sessions: [],
     busy: false,
+    compactMode: getInitialCompactMode(),
+    expansionTimers: new Set(),
     statusTimer: 0,
     refreshTimer: 0,
     terminalBody: null,
@@ -18,6 +29,7 @@
         title: "命令剪贴板", add: "新建片段", execute: "执行", edit: "编辑", remove: "删除",
         name: "名称", content: "命令内容", remark: "备注", weight: "排序权重", cancel: "取消",
         save: "保存", create: "创建", currentTerminal: "当前终端", noActive: "当前页面没有活动终端",
+        compact: "更少显示", compactOn: "更少显示已开启；悬停名称两秒展开", compactOff: "更少显示已关闭",
         waiting: "正在连接当前终端…", loading: "正在加载…", empty: "还没有命令片段",
         loadError: "读取失败", saveError: "保存失败", deleteConfirm: "确定删除这个命令片段吗？",
         sent: "已发送到当前终端", sendError: "发送失败", sessionLost: "当前终端会话尚未连接",
@@ -27,6 +39,7 @@
         title: "Command Clipboard", add: "New snippet", execute: "Run", edit: "Edit", remove: "Delete",
         name: "Name", content: "Command", remark: "Note", weight: "Sort weight", cancel: "Cancel",
         save: "Save", create: "Create", currentTerminal: "Current terminal", noActive: "No active terminal on this page",
+        compact: "Compact view", compactOn: "Compact view on; hover over a name for two seconds to expand", compactOff: "Compact view off",
         waiting: "Connecting to the current terminal…", loading: "Loading…", empty: "No command snippets yet",
         loadError: "Could not load snippets", saveError: "Could not save snippet", deleteConfirm: "Delete this command snippet?",
         sent: "Sent to the current terminal", sendError: "Could not send command", sessionLost: "Current terminal session is not connected",
@@ -53,6 +66,11 @@
 
   function notifyCurrentSessionChange() {
     window.dispatchEvent(new CustomEvent("kcc:current-session-changed"));
+  }
+
+  function clearExpansionTimers() {
+    for (const timer of state.expansionTimers) window.clearTimeout(timer);
+    state.expansionTimers.clear();
   }
 
   // The terminal page renders one .km-terminal-session node per tab in tab
@@ -175,7 +193,7 @@
       </button>
       <aside class="kcc-panel" data-open="false" aria-label="Command Clipboard">
         <div class="kcc-header"><span data-kcc-title></span><button class="kcc-button" type="button" data-kcc-close></button></div>
-        <div class="kcc-toolbar"><button class="kcc-button kcc-button-primary" type="button" data-kcc-add></button><button class="kcc-button" type="button" data-kcc-refresh>↻</button></div>
+        <div class="kcc-toolbar"><button class="kcc-button kcc-button-primary" type="button" data-kcc-add></button><button class="kcc-button" type="button" data-kcc-compact aria-pressed="true"></button><button class="kcc-button" type="button" data-kcc-refresh>↻</button></div>
         <div class="kcc-current-session" data-kcc-current-session aria-live="polite"></div>
         <div class="kcc-items" data-kcc-items></div>
         <div class="kcc-footer" data-kcc-status role="status" aria-live="polite"></div>
@@ -198,7 +216,16 @@
     const items = root.querySelector("[data-kcc-items]");
     const status = root.querySelector("[data-kcc-status]");
     const currentSessionLabel = root.querySelector("[data-kcc-current-session]");
+    const compactButton = root.querySelector("[data-kcc-compact]");
     let editingID = null;
+
+    function updateCompactMode() {
+      const t = strings();
+      panel.dataset.compact = state.compactMode ? "true" : "false";
+      compactButton.textContent = state.compactMode ? `✓ ${t.compact}` : t.compact;
+      compactButton.setAttribute("aria-pressed", state.compactMode ? "true" : "false");
+      compactButton.title = state.compactMode ? t.compactOn : t.compactOff;
+    }
 
     function setStatus(message, error = false) {
       status.textContent = message;
@@ -272,6 +299,7 @@
     }
 
     function renderCommands() {
+      clearExpansionTimers();
       items.replaceChildren();
       if (!state.commands.length) {
         const empty = document.createElement("div");
@@ -290,6 +318,30 @@
         const title = document.createElement("div");
         title.className = "kcc-card-title";
         title.textContent = command.name || "";
+        let expansionTimer = 0;
+        const cancelExpansion = () => {
+          if (!expansionTimer) return;
+          window.clearTimeout(expansionTimer);
+          state.expansionTimers.delete(expansionTimer);
+          expansionTimer = 0;
+        };
+        title.addEventListener("mouseenter", () => {
+          if (!state.compactMode || card.dataset.kccExpanded === "true") return;
+          cancelExpansion();
+          expansionTimer = window.setTimeout(() => {
+            state.expansionTimers.delete(expansionTimer);
+            expansionTimer = 0;
+            if (state.compactMode && title.matches(":hover")) {
+              card.dataset.kccExpanded = "true";
+            }
+          }, 2000);
+          state.expansionTimers.add(expansionTimer);
+        });
+        title.addEventListener("mouseleave", cancelExpansion);
+        card.addEventListener("mouseleave", () => {
+          cancelExpansion();
+          if (state.compactMode) delete card.dataset.kccExpanded;
+        });
         const run = document.createElement("button");
         run.className = "kcc-button kcc-button-primary";
         run.type = "button";
@@ -444,6 +496,7 @@
       toggle.setAttribute("aria-label", t.open);
       toggle.title = t.open;
       root.querySelector("[data-kcc-refresh]").title = isZh() ? "刷新" : "Refresh";
+      updateCompactMode();
     }
 
     toggle.addEventListener("click", () => setOpen(panel.dataset.open !== "true"));
@@ -452,6 +505,21 @@
     root.querySelector("[data-kcc-refresh]").addEventListener("click", () => {
       void refreshCommands();
       void refreshSessions();
+    });
+    compactButton.addEventListener("click", () => {
+      state.compactMode = !state.compactMode;
+      clearExpansionTimers();
+      if (state.compactMode) {
+        root.querySelectorAll(".kcc-card[data-kcc-expanded]").forEach((card) => {
+          delete card.dataset.kccExpanded;
+        });
+      }
+      try {
+        window.localStorage.setItem(COMPACT_MODE_KEY, String(state.compactMode));
+      } catch {
+        // Keep the in-memory preference when storage is unavailable.
+      }
+      updateCompactMode();
     });
     root.querySelector("[data-kcc-cancel]").addEventListener("click", () => dialog.close());
     form.addEventListener("submit", saveCommand);
