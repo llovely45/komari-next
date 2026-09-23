@@ -15,15 +15,17 @@ import (
 	"github.com/komari-monitor/komari/utils"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func DeleteClient(clientUuid string) error {
 	db := dbcore.GetDBInstance()
-	err := db.Delete(&models.Client{}, "uuid = ?", clientUuid).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("client = ?", clientUuid).Delete(&models.OfflineNotification{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.Client{}, "uuid = ?", clientUuid).Error
+	})
 }
 
 func SaveClientInfo(update map[string]interface{}) error {
