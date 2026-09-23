@@ -358,6 +358,19 @@ func (g *goWASIRuntime) validateHandshake(handshake pluginprocess.Handshake) (pl
 }
 
 func (g *goWASIRuntime) handleHostCall(ctx context.Context, message pluginprocess.Message) ([]byte, *pluginprocess.PluginError) {
+	// Synchronous host callbacks count as progress while the guest is waiting
+	// for their result and may not be able to emit its own heartbeat.
+	started := time.Now()
+	callName := message.Method
+	g.heartbeatAt.Store(started.UnixNano())
+	defer func() {
+		elapsed := time.Since(started)
+		g.heartbeatAt.Store(time.Now().UnixNano())
+		if elapsed >= 5*time.Second {
+			_, _ = fmt.Fprintf(g.logs, "[plugin] Go/WASI host call %s completed in %s\n", safePluginLog(callName), elapsed.Round(time.Millisecond))
+		}
+	}()
+
 	switch message.Method {
 	case "host.register_rpc":
 		if !g.allowed[pluginprocess.CapabilityRoutes] {
@@ -404,6 +417,7 @@ func (g *goWASIRuntime) handleHostCall(ctx context.Context, message pluginproces
 		if rpc.IsSensitive(request.Method) {
 			return nil, pluginError("sensitive_rpc_denied", "Go/WASI plugins cannot call methods that require interactive 2FA")
 		}
+		callName += ":" + request.Method
 		meta := &rpc.ContextMeta{Permission: rpc.RoleAdmin, Principal: rpc.PrincipalFromRole(rpc.RoleAdmin)}
 		callCtx, cancel := context.WithTimeout(ctx, goWASIRequestTimeout(g.info.Permissions.TimeoutSeconds))
 		defer cancel()
