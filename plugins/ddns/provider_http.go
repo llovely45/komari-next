@@ -21,7 +21,7 @@ func providerRequest(ctx context.Context, client *pluginprocess.Client, method, 
 		URL: address, Method: method, Headers: headers, Body: body,
 	})
 	if err != nil {
-		return nil, 0, nil, errors.New("DNS API 请求失败，请检查服务器网络和插件权限")
+		return nil, 0, nil, fmt.Errorf("DNS API 请求失败：%w", err)
 	}
 	if len(response.Body) > providerMaxBody {
 		return nil, response.Status, response.Headers, errors.New("DNS API 响应内容过大")

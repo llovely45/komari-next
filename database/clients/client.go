@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	logger "github.com/komari-monitor/komari/utils/log"
@@ -204,6 +205,16 @@ func GetClientTokenByUUID(uuid string) (token string, err error) {
 func GetAllClientBasicInfo() (clients []models.Client, err error) {
 	db := dbcore.GetDBInstance()
 	err = db.Find(&clients).Error
+	if err != nil {
+		return nil, err
+	}
+	return clients, nil
+}
+
+// GetAllDDNSClientInfo returns only the client fields used by the DDNS plugin.
+func GetAllDDNSClientInfo(ctx context.Context) (clients []models.Client, err error) {
+	db := dbcore.GetDBInstance().WithContext(ctx)
+	err = db.Select("uuid", "name", "ipv4", "ipv6", "group").Find(&clients).Error
 	if err != nil {
 		return nil, err
 	}

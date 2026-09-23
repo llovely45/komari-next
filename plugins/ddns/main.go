@@ -61,7 +61,7 @@ func (s *service) rpcState(ctx context.Context, _ pluginprocess.Message) ([]byte
 func (s *service) rpcClients(ctx context.Context, _ pluginprocess.Message) ([]byte, *pluginprocess.PluginError) {
 	clients, err := s.clients(ctx)
 	if err != nil {
-		return nil, pluginErr("clients_unavailable", "无法读取 Komari 节点列表")
+		return nil, pluginErr("clients_unavailable", "无法读取 Komari 节点列表："+s.redact(err.Error()))
 	}
 	return encodeResponse(clients)
 }

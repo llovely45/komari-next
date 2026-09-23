@@ -132,7 +132,7 @@ func cloneHistory(source map[string]runStatus) map[string]runStatus {
 
 func (s *service) clients(ctx context.Context) ([]clientInfo, error) {
 	var rows []clientInfo
-	if err := s.client.CallKomariRPC(ctx, "admin:listClients", map[string]any{}, &rows); err != nil {
+	if err := s.client.CallKomariRPC(ctx, "admin:listDDNSClients", map[string]any{}, &rows); err != nil {
 		return nil, err
 	}
 	return rows, nil
@@ -159,7 +159,7 @@ func (s *service) save(ctx context.Context, input saveInput) (publicState, error
 	}
 	current, err := s.clients(ctx)
 	if err != nil {
-		return publicState{}, errors.New("无法读取 Komari 节点列表")
+		return publicState{}, fmt.Errorf("无法读取 Komari 节点列表：%s", s.redact(err.Error()))
 	}
 	available := make(map[string]bool, len(current))
 	for _, node := range current {
@@ -361,7 +361,7 @@ func (s *service) execute(rules []rule) {
 	}()
 	nodes, err := s.clients(ctx)
 	if err != nil {
-		message := "无法读取 Komari 节点列表，下个周期会重试"
+		message := "无法读取 Komari 节点列表：" + s.redact(err.Error()) + "；下个周期会重试"
 		s.mu.Lock()
 		s.lastError = message
 		for _, value := range rules {

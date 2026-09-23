@@ -97,7 +97,7 @@ func (m *Manager) loadGoWASI(short, dir string, info models.Plugin) error {
 		short: short, storage: storage, info: info, wasm: wasm, logs: logs,
 		ctx: ctx, cancel: cancel, done: make(chan struct{}), ready: make(chan error, 1),
 		rpcReady: make(chan error, 1), allowed: make(map[pluginprocess.Capability]bool),
-		httpClient:  newGoPluginHTTPClient(),
+		httpClient:  newGoPluginHTTPClient(goWASIRequestTimeout(info.Permissions.TimeoutSeconds)),
 		hostMethods: make(map[string]struct{}),
 	}
 	for _, name := range info.Permissions.GoCapabilities {
@@ -405,7 +405,7 @@ func (g *goWASIRuntime) handleHostCall(ctx context.Context, message pluginproces
 			return nil, pluginError("sensitive_rpc_denied", "Go/WASI plugins cannot call methods that require interactive 2FA")
 		}
 		meta := &rpc.ContextMeta{Permission: rpc.RoleAdmin, Principal: rpc.PrincipalFromRole(rpc.RoleAdmin)}
-		callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		callCtx, cancel := context.WithTimeout(ctx, goWASIRequestTimeout(g.info.Permissions.TimeoutSeconds))
 		defer cancel()
 		response := rpc.CallWithContext(rpc.NewContextWithMeta(callCtx, meta), nil, request.Method, request.Params)
 		if response.Error != nil {
@@ -415,7 +415,7 @@ func (g *goWASIRuntime) handleHostCall(ctx context.Context, message pluginproces
 		if err != nil {
 			return nil, pluginError("rpc_result_encode", "failed to encode Komari RPC result")
 		}
-		if request.Method == "admin:listClients" {
+		if request.Method == "admin:listClients" || request.Method == "admin:listDDNSClients" {
 			data, err = sanitizeGoPluginClientList(data)
 			if err != nil {
 				return nil, pluginError("rpc_result_encode", "failed to sanitize Komari client list")
@@ -708,7 +708,7 @@ func (g *goWASIRuntime) hostHTTP(ctx context.Context, payload []byte) ([]byte, *
 	if len(request.Body) > goWASIHTTPMaxBytes {
 		return nil, pluginError("http_body_too_large", "HTTP request body exceeds the plugin limit")
 	}
-	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	callCtx, cancel := context.WithTimeout(ctx, goWASIRequestTimeout(g.info.Permissions.TimeoutSeconds))
 	defer cancel()
 	req, err := http.NewRequestWithContext(callCtx, request.Method, request.URL, bytes.NewReader(request.Body))
 	if err != nil {
@@ -831,7 +831,18 @@ func validateGoPluginURL(raw string) error {
 	return nil
 }
 
-func newGoPluginHTTPClient() *http.Client {
+func goWASIRequestTimeout(timeoutSeconds int) time.Duration {
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout <= 0 || timeout > 60*time.Second {
+		timeout = 30 * time.Second
+	}
+	if timeout > 45*time.Second {
+		timeout = 45 * time.Second
+	}
+	return timeout
+}
+
+func newGoPluginHTTPClient(timeout time.Duration) *http.Client {
 	base, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
 		base = &http.Transport{}
@@ -840,7 +851,7 @@ func newGoPluginHTTPClient() *http.Client {
 	transport.Proxy = nil
 	transport.DialContext = dialGoPluginAddress
 	return &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   timeout,
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse

@@ -5,6 +5,7 @@ const API = "/api/rpc2";
 const DAY_NAMES = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 let state = null;
 let nodes = [];
+let nodesError = "";
 let rules = [];
 let editingId = "";
 let busy = false;
@@ -130,12 +131,19 @@ function render() {
 }
 
 async function refresh() {
-  const values = await Promise.all([
+  const values = await Promise.allSettled([
     request("plugin:cloudflare-ddns:state"),
     request("plugin:cloudflare-ddns:clients")
   ]);
-  state = values[0];
-  nodes = values[1] || [];
+  if (values[0].status === "rejected") throw values[0].reason;
+  state = values[0].value;
+  if (values[1].status === "rejected") {
+    nodes = [];
+    nodesError = values[1].reason && values[1].reason.message || "未知错误";
+  } else {
+    nodes = values[1].value || [];
+    nodesError = "";
+  }
   if (!refresh.draftLoaded) {
     rules = (state.config.rules || []).map(rule => JSON.parse(JSON.stringify(rule)));
     refresh.draftLoaded = true;
@@ -157,6 +165,10 @@ function drawWeekdays(selected) {
 
 function drawServers(selected) {
   const chosen = new Set(selected || []);
+  if (nodesError) {
+    $("server-list").innerHTML = '<div class="inline-empty">读取节点失败：' + escapeHTML(nodesError) + '</div>';
+    return;
+  }
   if (!nodes.length) {
     $("server-list").innerHTML = '<div class="inline-empty">暂时没有可选节点</div>';
     return;
