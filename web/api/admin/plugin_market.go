@@ -24,6 +24,7 @@ import (
 // download/validation helpers are shared with the theme market.
 
 const defaultPluginMarketURL = "https://raw.githubusercontent.com/komari-monitor/plugin-market/main/v1.json"
+const legacyPersonalPluginMarketURL = "https://komari-next.pages.dev/plugin-market/v1.json"
 
 type PluginMarketSource struct {
 	ID      string `json:"id"`
@@ -83,7 +84,7 @@ func personalPluginMarketSource() PluginMarketSource {
 	return PluginMarketSource{
 		ID:      "llovely45-plugins",
 		Name:    "Komari Next Official",
-		URL:     "https://komari-next.pages.dev/plugin-market/v1.json",
+		URL:     "https://raw.githubusercontent.com/llovely45/komari-next/main/plugin-market/v1.json",
 		Enabled: true,
 	}
 }
@@ -129,6 +130,20 @@ func getPluginMarketSources() ([]PluginMarketSource, error) {
 			return nil, err
 		}
 		if err := config.Set(config.PluginMarketPersonalSourceRenamedKey, true); err != nil {
+			return nil, err
+		}
+	}
+	personalSource = personalPluginMarketSource()
+	migrated := false
+	for i := range sources {
+		if sources[i].ID == personalSource.ID && sources[i].URL == legacyPersonalPluginMarketURL {
+			sources[i].URL = personalSource.URL
+			sources[i].Name = personalSource.Name
+			migrated = true
+		}
+	}
+	if migrated {
+		if err := savePluginMarketSources(sources); err != nil {
 			return nil, err
 		}
 	}

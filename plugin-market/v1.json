@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "plugins": [
+    {
+      "name": {
+        "zh_CN": "命令剪贴板",
+        "en": "Command Clipboard"
+      },
+      "short": "command-clipboard",
+      "description": {
+        "zh_CN": "在终端页管理常用命令片段，支持紧凑显示并发送到当前终端。",
+        "en": "Manage reusable command snippets on the terminal page, with compact view and sending to the current terminal."
+      },
+      "version": "1.0.5",
+      "author": "Komari Next",
+      "komari": ">=1.0.12",
+      "url": "https://github.com/llovely45/komari-next/tree/main/plugins/command-clipboard",
+      "download": "https://komari-next.pages.dev/plugin-market/command-clipboard-1.0.5.zip",
+      "sha256": "5aaa9e4a1293ea0a29e83b523ada69c10f17affb8bcc61d48154964fd833452b"
+    },
+    {
+      "name": {
+        "zh_CN": "动态 DNS",
+        "en": "Dynamic DNS"
+      },
+      "short": "cloudflare-ddns",
+      "description": {
+        "zh_CN": "从 Komari 节点读取 IPv4/IPv6，按规则更新 Cloudflare 或华为云国际站 DNS；支持华为云解析线路和星期时段调度。",
+        "en": "Update Cloudflare or Huawei Cloud International DNS from Komari nodes, with Huawei DNS lines and weekly time-window scheduling."
+      },
+      "version": "2.2.0",
+      "author": "Komari Next",
+      "komari": ">=1.0.19",
+      "url": "https://github.com/llovely45/komari-next/tree/main/plugins/ddns",
+      "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.2.0.zip",
+      "sha256": "a3bd6014a8316c71b88fb8cedfec21a7579794834d43e194f3adde70c35dd726"
+    },
+    {
+      "name": {
+        "zh_CN": "节点备份恢复",
+        "en": "Node Backup & Restore"
+      },
+      "short": "client-backup",
+      "description": {
+        "zh_CN": "导出服务器列表中的节点数据，并按 IPv4 安全恢复。",
+        "en": "Export node data and restore it safely by matching IPv4 addresses."
+      },
+      "version": "1.0.0",
+      "author": "Komari Next",
+      "komari": ">=1.0.20",
+      "url": "https://github.com/llovely45/komari-next/tree/main/plugins/client-backup",
+      "download": "https://raw.githubusercontent.com/llovely45/komari-next/main/plugin-market/client-backup-1.0.0.zip",
+      "sha256": "82e5d8b69c5c3064443bc4495ade7d82420d401e29702336ec1f4e70d374bd0a"
+    }
+  ]
+}

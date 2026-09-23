@@ -9,6 +9,7 @@
     "en": "Export node data and restore it safely by matching IPv4 addresses."
   },
   "author": "Komari Next",
+  "url": "https://github.com/llovely45/komari-next/tree/main/plugins/client-backup",
   "version": "1.0.0",
   "komari": ">=1.0.20",
   "entry": "script.js",

@@ -14,10 +14,12 @@
 
 ## 安装
 
-本插件需要 Komari Next `1.0.20` 或更新版本提供的 `admin:restoreClients` RPC（本仓库已添加该方法）。在仓库根目录打包：
+本插件需要 Komari Next `1.0.20` 或更新版本提供的 `admin:restoreClients` RPC（本仓库已添加该方法）。插件市场目录由 `plugin-market/v1.json` 提供；源码、安装包和 SHA-256 都通过该目录发布。
+
+在仓库根目录打包并更新市场目录：
 
 ```sh
 python3 scripts/package-client-backup.py
 ```
 
-将 `dist/client-backup-1.0.0.zip` 上传到管理端插件页面，启用后从插件侧栏打开“节点备份恢复”。
+脚本生成 `plugin-market/client-backup-<version>.zip`，并更新 `plugin-market/v1.json` 中该插件的版本、兼容版本、下载地址和 SHA-256。将源码、ZIP 和目录一起推送到 `main` 后，Komari Next 官方插件源会读取该目录。不要将 ZIP 放进 `dist/`，也无需在插件管理页手工上传；从插件市场安装即可。启用后从插件侧栏打开“节点备份恢复”。
