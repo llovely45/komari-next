@@ -120,6 +120,16 @@ func (s *Session) Close() {
 	s.cancel()
 }
 
+// HasPendingCalls reports whether the session is waiting for responses to
+// calls sent to the peer. This is useful to distinguish an idle session from
+// one whose peer is expected to be processing work.
+func (s *Session) HasPendingCalls() bool {
+	s.mu.Lock()
+	pending := len(s.pending) > 0
+	s.mu.Unlock()
+	return pending
+}
+
 func (s *Session) Notify(method string, payload []byte) error {
 	if method == "" {
 		return errors.New("plugin event method is empty")

@@ -689,6 +689,15 @@ func (g *goWASIRuntime) watchHeartbeat(ctx context.Context, cancel context.Cance
 		case <-ticker.C:
 			last := time.Unix(0, g.heartbeatAt.Load())
 			if time.Since(last) > 60*time.Second {
+				// WASI stdin is backed by a blocking reader. While the guest is
+				// idle waiting for the next host call, fd_read blocks the guest
+				// runtime too, so its heartbeat goroutine cannot run. Only treat
+				// a missed heartbeat as a hang when the host is waiting for a
+				// response from the guest.
+				if !session.HasPendingCalls() {
+					g.heartbeatAt.Store(time.Now().UnixNano())
+					continue
+				}
 				_, _ = fmt.Fprintf(g.logs, "[plugin] Go/WASI plugin %s missed heartbeats; restarting\n", g.short)
 				session.Close()
 				cancel()
