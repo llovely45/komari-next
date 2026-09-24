@@ -9,11 +9,11 @@
     "en": "Update Cloudflare or Huawei Cloud International DNS records from Komari nodes or manually specified addresses."
   },
   "author": "Komari Next",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "komari": ">=1.0.20",
   "runtime": "go-wasi",
   "entry": "plugin.wasm",
-  "entrySha256": "cafbabb39cb49f4dac93318df8864a4cce32860ff6bf5a4b063a3a25df42c987",
+  "entrySha256": "e2279825e71a39f628eebc9f8e67a3887ee1645a09f58507501dfc2ef7cc8549",
   "rpcMethods": [
     "plugin:cloudflare-ddns:state",
     "plugin:cloudflare-ddns:clients",

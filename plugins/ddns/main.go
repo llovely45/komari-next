@@ -12,7 +12,7 @@ import (
 
 const (
 	pluginID      = "cloudflare-ddns"
-	pluginVersion = "2.3.3"
+	pluginVersion = "2.3.4"
 )
 
 func main() {
@@ -50,6 +50,7 @@ func main() {
 		service.mu.Unlock()
 		_ = client.Log(context.Background(), "加载配置失败: "+err.Error())
 	}
+	_ = client.Log(context.Background(), fmt.Sprintf("DDNS 插件已启动：ID=%s，运行版本=%s", pluginID, pluginVersion))
 	go service.scheduleLoop(context.Background())
 	if err := client.Wait(); err != nil {
 		fmt.Fprintln(os.Stderr, "DDNS plugin stopped:", err)

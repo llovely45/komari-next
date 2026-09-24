@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -45,7 +46,7 @@ func (p *huaweiProvider) request(ctx context.Context, method, path string, query
 	headers := jsonHeaders()
 	headers.Set("X-Sdk-Date", date)
 	headers.Set("Authorization", "SDK-HMAC-SHA256 Access="+p.credentials.AccessKey+", SignedHeaders=x-sdk-date, Signature="+signature)
-	responseBody, status, _, err := providerRequest(ctx, p.client, method, address, headers, body)
+	responseBody, status, responseHeaders, err := providerRequest(ctx, p.client, method, address, headers, body)
 	if err != nil {
 		return nil, err
 	}
@@ -53,13 +54,32 @@ func (p *huaweiProvider) request(ctx context.Context, method, path string, query
 		var failure struct {
 			ErrorCode string `json:"error_code"`
 			Code      string `json:"code"`
+			ErrorMsg  string `json:"error_msg"`
 		}
 		_ = json.Unmarshal(responseBody, &failure)
-		code := failure.ErrorCode
+		code := strings.TrimSpace(failure.ErrorCode)
 		if code == "" {
-			code = failure.Code
+			code = strings.TrimSpace(failure.Code)
 		}
-		return nil, httpFailure("华为云", status, code)
+		code = sanitizeHuaweiCode(code)
+		requestID := huaweiRequestID(responseHeaders)
+		detail := sanitizeHuaweiError(failure.ErrorMsg, p.credentials)
+		message := formatHuaweiHTTPFailure(p.credentials.Region, method, p.host, path, status, code, requestID, detail)
+		if p.client != nil {
+			_ = p.client.Log(ctx, fmt.Sprintf(
+				"[huawei-dns] plugin_version=%s region=%s endpoint=%s method=%s path=%s status=%d code=%s request_id=%s error_msg=%q",
+				pluginVersion,
+				p.credentials.Region,
+				p.host,
+				method,
+				path,
+				status,
+				code,
+				requestID,
+				detail,
+			))
+		}
+		return nil, errors.New(message)
 	}
 	return responseBody, nil
 }

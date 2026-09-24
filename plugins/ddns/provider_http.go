@@ -49,6 +49,76 @@ func boundedErrorCode(value string) string {
 	return value
 }
 
+func sanitizeHuaweiCode(value string) string {
+	var safe strings.Builder
+	for _, char := range strings.TrimSpace(value) {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || strings.ContainsRune("._-", char) {
+			safe.WriteRune(char)
+		}
+		if safe.Len() >= 80 {
+			break
+		}
+	}
+	return safe.String()
+}
+
+func huaweiRequestID(headers http.Header) string {
+	for _, name := range []string{"X-Request-Id", "X-Apig-Request-Id", "X-Apigw-Request-Id", "X-Trace-Id"} {
+		value := strings.TrimSpace(headers.Get(name))
+		if value == "" {
+			continue
+		}
+		var safe strings.Builder
+		for _, char := range value {
+			if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || strings.ContainsRune("-_.:", char) {
+				safe.WriteRune(char)
+			} else {
+				safe.WriteByte('_')
+			}
+			if safe.Len() >= 128 {
+				break
+			}
+		}
+		return safe.String()
+	}
+	return ""
+}
+
+func sanitizeHuaweiError(value string, credentials huaweiCredentials) string {
+	value = strings.NewReplacer("\r", " ", "\n", " ", "\t", " ").Replace(value)
+	for _, secret := range []string{credentials.AccessKey, credentials.SecretKey} {
+		if secret != "" {
+			value = strings.ReplaceAll(value, secret, "[REDACTED]")
+		}
+	}
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) > 384 {
+		value = string(runes[:384]) + "…"
+	}
+	return value
+}
+
+func formatHuaweiHTTPFailure(region, method, host, path string, status int, code, requestID, detail string) string {
+	parts := []string{fmt.Sprintf("HTTP %d", status)}
+	if code = boundedErrorCode(code); code != "" {
+		parts = append(parts, "错误码 "+code)
+	}
+	if region = strings.TrimSpace(region); region != "" {
+		parts = append(parts, "区域 "+region)
+	}
+	if host = strings.TrimSpace(host); host != "" {
+		parts = append(parts, fmt.Sprintf("接口 %s https://%s%s", strings.TrimSpace(method), host, path))
+	}
+	if requestID = strings.TrimSpace(requestID); requestID != "" {
+		parts = append(parts, "请求 ID "+requestID)
+	}
+	if detail = strings.TrimSpace(detail); detail != "" {
+		parts = append(parts, "服务端说明 "+detail)
+	}
+	return "华为云 DNS 请求失败（" + strings.Join(parts, "；") + "）"
+}
+
 func httpFailure(provider string, status int, code string) error {
 	if code != "" {
 		return fmt.Errorf("%s DNS 请求失败（HTTP %d，错误码 %s）", provider, status, boundedErrorCode(code))
