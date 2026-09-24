@@ -28,12 +28,12 @@
         "zh_CN": "使用 Komari 节点或手动指定 IP 同步 Cloudflare 与华为云国际站 DNS，支持华为解析线路和按时段调度。",
         "en": "Sync Cloudflare and Huawei Cloud International DNS using Komari nodes or fixed IPs, with Huawei line selection and scheduled time windows."
       },
-      "version": "2.3.3",
+      "version": "2.3.4",
       "author": "Komari Next",
       "komari": ">=1.0.20",
       "url": "https://github.com/llovely45/komari-next/tree/main/plugins/ddns",
-      "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.3.3.zip",
-      "sha256": "85a787bc7a3dbbffed260b404f014d89b49a2dc2ac1551fa83febcf2a054ba62"
+      "download": "https://komari-next.pages.dev/plugin-market/cloudflare-ddns-2.3.4.zip",
+      "sha256": "2d126aa64e266a37b4ba9c6351bbd397af332174d5450f53e277619bbac9a4ef"
     },
     {
       "name": {
