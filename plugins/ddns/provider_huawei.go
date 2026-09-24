@@ -43,7 +43,7 @@ func (p *huaweiProvider) request(ctx context.Context, method, path string, query
 	date := time.Now().UTC().Format("20060102T150405Z")
 	bodyHash := sha256Hex(body)
 	canonicalHeaders := "host:" + p.host + "\nx-sdk-date:" + date + "\n"
-	canonicalRequest := method + "\n" + path + "\n" + canonicalQuery + "\n" + canonicalHeaders + "\n" + "host;x-sdk-date" + "\n" + bodyHash
+	canonicalRequest := method + "\n" + canonicalURI(path) + "\n" + canonicalQuery + "\n" + canonicalHeaders + "\n" + "host;x-sdk-date" + "\n" + bodyHash
 	stringToSign := "SDK-HMAC-SHA256\n" + date + "\n" + sha256Hex([]byte(canonicalRequest))
 	signature := hmacHex(p.credentials.SecretKey, stringToSign)
 	headers := jsonHeaders()
@@ -327,6 +327,24 @@ func canonicalQuery(query map[string]string) string {
 		values = append(values, awsEncode(key)+"="+awsEncode(query[key]))
 	}
 	return strings.Join(values, "&")
+}
+
+func canonicalURI(path string) string {
+	segments := strings.Split(path, "/")
+	for index, segment := range segments {
+		if decoded, err := url.PathUnescape(segment); err == nil {
+			segment = decoded
+		}
+		segments[index] = awsEncode(segment)
+	}
+	canonical := strings.Join(segments, "/")
+	if canonical == "" {
+		return "/"
+	}
+	if !strings.HasSuffix(canonical, "/") {
+		canonical += "/"
+	}
+	return canonical
 }
 
 func awsEncode(value string) string {
