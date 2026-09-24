@@ -12,7 +12,7 @@ import (
 
 const (
 	pluginID      = "cloudflare-ddns"
-	pluginVersion = "2.3.2"
+	pluginVersion = "2.3.3"
 )
 
 func main() {

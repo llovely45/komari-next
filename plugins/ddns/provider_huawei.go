@@ -41,14 +41,10 @@ func (p *huaweiProvider) request(ctx context.Context, method, path string, query
 		}
 	}
 	date := time.Now().UTC().Format("20060102T150405Z")
-	bodyHash := sha256Hex(body)
-	canonicalHeaders := "host:" + p.host + "\nx-sdk-date:" + date + "\n"
-	canonicalRequest := method + "\n" + canonicalURI(path) + "\n" + canonicalQuery + "\n" + canonicalHeaders + "\n" + "host;x-sdk-date" + "\n" + bodyHash
-	stringToSign := "SDK-HMAC-SHA256\n" + date + "\n" + sha256Hex([]byte(canonicalRequest))
-	signature := hmacHex(p.credentials.SecretKey, stringToSign)
+	signature := huaweiSignature(method, path, canonicalQuery, date, body, p.credentials.SecretKey)
 	headers := jsonHeaders()
 	headers.Set("X-Sdk-Date", date)
-	headers.Set("Authorization", "SDK-HMAC-SHA256 Access="+p.credentials.AccessKey+", SignedHeaders=host;x-sdk-date, Signature="+signature)
+	headers.Set("Authorization", "SDK-HMAC-SHA256 Access="+p.credentials.AccessKey+", SignedHeaders=x-sdk-date, Signature="+signature)
 	responseBody, status, _, err := providerRequest(ctx, p.client, method, address, headers, body)
 	if err != nil {
 		return nil, err
@@ -345,6 +341,13 @@ func canonicalURI(path string) string {
 		canonical += "/"
 	}
 	return canonical
+}
+
+func huaweiSignature(method, path, query, date string, body []byte, secret string) string {
+	canonicalHeaders := "x-sdk-date:" + date + "\n"
+	canonicalRequest := method + "\n" + canonicalURI(path) + "\n" + query + "\n" + canonicalHeaders + "\n" + "x-sdk-date" + "\n" + sha256Hex(body)
+	stringToSign := "SDK-HMAC-SHA256\n" + date + "\n" + sha256Hex([]byte(canonicalRequest))
+	return hmacHex(secret, stringToSign)
 }
 
 func awsEncode(value string) string {
