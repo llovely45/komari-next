@@ -10,6 +10,18 @@ import (
 	"github.com/komari-monitor/komari/web/connection"
 )
 
+const (
+	terminalPingInterval = 20 * time.Second
+	terminalPongTimeout  = 60 * time.Second
+)
+
+func enableTerminalKeepalive(conn *connection.SafeConn) {
+	_ = conn.SetReadDeadline(time.Now().Add(terminalPongTimeout))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(terminalPongTimeout))
+	})
+}
+
 func ForwardTerminal(id string, browser, agent *connection.SafeConn) {
 	if browser == nil || agent == nil {
 		return
@@ -27,7 +39,30 @@ func ForwardTerminal(id string, browser, agent *connection.SafeConn) {
 
 	auditlog.Log(requesterIp, userUUID, "established, terminal id:"+id, "terminal")
 	established_time := time.Now()
-	errChan := make(chan error, 1)
+	errChan := make(chan error, 3)
+	stopKeepalive := make(chan struct{})
+	enableTerminalKeepalive(browser)
+	enableTerminalKeepalive(agent)
+
+	// Keep both WebSocket hops active even when a background browser tab
+	// throttles its JavaScript heartbeat timer.
+	go func() {
+		ticker := time.NewTicker(terminalPingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				for _, conn := range []*connection.SafeConn{browser, agent} {
+					if err := conn.WriteControl(websocket.PingMessage, []byte("terminal"), time.Now().Add(terminalPingInterval)); err != nil {
+						errChan <- err
+						return
+					}
+				}
+			case <-stopKeepalive:
+				return
+			}
+		}
+	}()
 
 	go func() {
 		for {
@@ -85,6 +120,7 @@ func ForwardTerminal(id string, browser, agent *connection.SafeConn) {
 
 	// 等待错误或主动关闭
 	<-errChan
+	close(stopKeepalive)
 	suspendSession(id, browser, agent)
 	disconnect_time := time.Now()
 	auditlog.Log(requesterIp, userUUID, "disconnected, terminal id:"+id+", duration:"+disconnect_time.Sub(established_time).String(), "terminal")

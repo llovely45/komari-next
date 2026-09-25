@@ -166,6 +166,18 @@ func (sc *SafeConn) SetReadDeadline(t time.Time) error {
 	return sc.conn.SetReadDeadline(t)
 }
 
+// WriteControl sends a WebSocket control frame. Gorilla permits control
+// frames to be written concurrently with the application data frames above.
+func (sc *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+	return sc.conn.WriteControl(messageType, data, deadline)
+}
+
+// SetPongHandler configures the callback used when a peer answers a ping.
+// Callers must set it before starting the connection's read loop.
+func (sc *SafeConn) SetPongHandler(h func(string) error) {
+	sc.conn.SetPongHandler(h)
+}
+
 func (sc *SafeConn) GetConn() *websocket.Conn {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
